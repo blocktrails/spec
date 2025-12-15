@@ -1,10 +1,10 @@
-# Blocktrails (v0.1)
+# Blocktrails (v0.2)
 
 Nostr-native output-key commitment chaining on Bitcoin.
 
 ## Definition
 
-A **Blocktrail** is a sequence of P2TR key-path outputs where each output key is the base key tweaked by `H(state)`, and spending the output advances the trail to a new committed state.
+A **Blocktrail** is a sequence of P2TR key-path outputs where each output key is derived by cumulatively tweaking the base key. Each state transition adds a new tweak, and spending the output advances the trail to the next committed state.
 
 ## Key Representation
 
@@ -23,11 +23,26 @@ Key encodings such as `nsec`, `npub`, or compressed public keys are out of scope
 
 ## Mechanism
 
-For state `s`:
+Blocktrails use **chained tweaking**: each state transition adds a scalar tweak to the previous key, forming a cryptographic chain that mirrors the spend chain.
 
-1. Compute `t = H(serialize(s))` reduced to a scalar
-2. Private key: `d = d_base + t`
-3. Public key: `P = d·G` (equivalently, `P = P_base + t·G`)
+For genesis state `s₀`:
+
+1. Compute `t₀ = scalar(s₀)`
+2. Private key: `d₀ = d_base + t₀`
+3. Public key: `P₀ = P_base + t₀·G`
+
+For transition to state `sᵢ`:
+
+1. Compute `tᵢ = scalar(sᵢ)`
+2. Private key: `dᵢ = dᵢ₋₁ + tᵢ`
+3. Public key: `Pᵢ = Pᵢ₋₁ + tᵢ·G`
+
+Equivalently, the cumulative tweak is the sum of all state scalars:
+
+```
+dₙ = d_base + t₀ + t₁ + ... + tₙ
+Pₙ = P_base + (t₀ + t₁ + ... + tₙ)·G
+```
 
 `H` is SHA-256 unless otherwise specified by the application.
 
@@ -113,29 +128,35 @@ Create P2TR output with witness program `output₀`. Holder knows `d₀`.
 
 ```
 tᵢ = scalar(stateᵢ)
-dᵢ = d_base + tᵢ
-Pᵢ = dᵢ·G
+dᵢ = dᵢ₋₁ + tᵢ
+Pᵢ = Pᵢ₋₁ + tᵢ·G
 outputᵢ = p2tr_xonly(Pᵢ)
 ```
 
 Sign with `dᵢ₋₁` to spend previous output. Create new output with witness program `outputᵢ`.
+
+Note: The spending key accumulates all previous tweaks. At state `n`:
+```
+dₙ = d_base + t₀ + t₁ + ... + tₙ
+```
 
 ### Verify
 
 ```
 verify(P_base, genesis_outpoint, states[]) → bool:
   outpoint = genesis_outpoint
+  P = P_base
 
   for state in states:
     t = scalar(state)    // rejects if t = 0
-    P = P_base + t·G
+    P = P + t·G          // chain the tweak
     if x(P) ≠ witness_program(outpoint): return false
     outpoint = spending_outpoint(outpoint)
 
   return is_unspent(outpoint)
 ```
 
-Since `x(P) == x(-P)`, verification simply compares x-coordinates. No parity handling needed.
+Verification chains the tweaks: each state adds to the running public key. Since `x(P) == x(-P)`, comparison uses x-coordinates only. No parity handling needed.
 
 To locate the spending transaction for a given outpoint, implementations MAY use any standard Bitcoin data source: full node with indexing, Electrum-style servers, or externally published transaction feeds.
 
