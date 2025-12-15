@@ -209,7 +209,7 @@ This primitive does not provide:
 
 ## Reference Implementation
 
-[blocktrails-js](https://github.com/blocktrails/blocktrails-js) — JavaScript/Node.js implementation with full test suite.
+[blocktrails](https://github.com/blocktrails/blocktrails) — JavaScript/Node.js implementation with full test suite.
 
 ```bash
 npm install blocktrails
