@@ -1,4 +1,4 @@
-# Blocktrails
+# Blocktrails (v0.1)
 
 Nostr-native output-key commitment chaining on Bitcoin.
 
@@ -25,13 +25,29 @@ Key encodings such as `nsec`, `npub`, or compressed public keys are out of scope
 
 For state `s`:
 
-1. Compute `t = H(serialize(s))` interpreted as 256-bit big-endian integer, reduced mod `n`
+1. Compute `t = H(serialize(s))` reduced to a scalar
 2. Private key: `d = d_base + t`
 3. Public key: `P = d·G` (equivalently, `P = P_base + t·G`)
 
 `H` is SHA-256 unless otherwise specified by the application.
 
-If `t = 0`, the state MUST be rejected as invalid (probability ~2^-256).
+**Hash-to-scalar reduction:**
+
+```
+scalar(s):
+  h = sha256(serialize(s))           // 32 bytes
+  t = int(h, big-endian) mod n       // n = secp256k1 group order
+  if t == 0: reject state as invalid // probability ~2^-256
+  return t
+```
+
+The tweak `t` MUST be in the range [1, n-1]. Implementations MUST reject states where `t = 0`. This is an application-layer rule — Bitcoin accepts the output regardless.
+
+Note: Since `sha256` output is 256 bits and `n ≈ 2^256`, the modular reduction is nearly uniform. No rehashing or counter-based totality mechanism is required.
+
+All subsequent uses of `scalar(state)` refer to this function.
+
+`serialize(s)` MUST be canonical and byte-stable: the same logical state MUST always produce identical bytes. Non-deterministic serialization breaks commitment verification.
 
 The base key `d_base` is immutable for a given trail. Rotation requires starting a new trail.
 
@@ -53,7 +69,7 @@ Spending this output advances the trail to the next committed state.
 
 Blocktrails use P2TR key-path only and do not require tapscript, script trees, or script-path spends. The only mechanism used is public-key tweaking.
 
-No domain separation is applied; the commitment binds exactly to the serialized state bytes. This is deliberate — simplicity is a goal. Applications requiring domain separation can include it in their `serialize()` function.
+No domain separation is applied; the commitment binds exactly to the serialized state bytes. This is deliberate — simplicity is a goal, mirroring Bitcoin's sighash minimalism philosophy. Applications requiring domain separation can include it in their `serialize()` function.
 
 ## Components
 
@@ -85,7 +101,7 @@ In practice, **top-up** is the only liveness-oriented convention that may be wid
 ### Genesis
 
 ```
-t₀ = H(serialize(state₀)) mod n
+t₀ = scalar(state₀)
 d₀ = d_base + t₀
 P₀ = d₀·G
 output₀ = p2tr_xonly(P₀)
@@ -96,7 +112,7 @@ Create P2TR output with witness program `output₀`. Holder knows `d₀`.
 ### Transition
 
 ```
-tᵢ = H(serialize(stateᵢ)) mod n
+tᵢ = scalar(stateᵢ)
 dᵢ = d_base + tᵢ
 Pᵢ = dᵢ·G
 outputᵢ = p2tr_xonly(Pᵢ)
@@ -111,7 +127,7 @@ verify(P_base, genesis_outpoint, states[]) → bool:
   outpoint = genesis_outpoint
 
   for state in states:
-    t = H(serialize(state)) mod n
+    t = scalar(state)    // rejects if t = 0
     P = P_base + t·G
     if x(P) ≠ witness_program(outpoint): return false
     outpoint = spending_outpoint(outpoint)
@@ -123,7 +139,17 @@ Since `x(P) == x(-P)`, verification simply compares x-coordinates. No parity han
 
 To locate the spending transaction for a given outpoint, implementations MAY use any standard Bitcoin data source: full node with indexing, Electrum-style servers, or externally published transaction feeds.
 
-Blocktrails are SPV-compatible. Verification requires only output keys and merkle inclusion proofs — no full node necessary.
+**SPV compatibility and data dependencies:**
+
+Blocktrails are SPV-compatible. Verification requires:
+
+- **Block headers** — to validate proof-of-work chain
+- **Merkle inclusion proofs** — for each transaction in the spend chain
+- **Genesis outpoint** — application must know or discover the starting point
+- **Spending outpoint lookup** — a method to find which transaction spent a given output (e.g., Electrum query, utreexo proof, or trusted indexer)
+- **Current UTXO status** — to determine if the head output is unspent
+
+No full node is necessary, but UTXO status and spend-chain traversal require indexing or proof infrastructure. "SPV-compatible" does not mean "zero external dependencies."
 
 ## Interface
 
@@ -174,7 +200,7 @@ This primitive does not provide:
 
 | Threat | Why | Mitigation |
 |--------|-----|------------|
-| Key compromise | Holder of `d_base` controls all transitions | Secure key storage |
+| Key compromise | Holder of `d_base` controls all transitions. Compromise means loss of all funds in the head output and full control over all future state transitions. | Secure key storage |
 | State withholding | State lives off-chain | Redundant state distribution |
 | Invalid state transitions | Validation is client-side | Verifiers must check `validate(prev, next)` |
 | Censorship | Depends on Bitcoin transaction inclusion | Standard Bitcoin censorship resistance |
@@ -214,6 +240,10 @@ This primitive does not provide:
 ```bash
 npm install blocktrails
 ```
+
+## Related Specifications
+
+- [Blocktrails Profiles](./profiles.md) — Application-layer profiles defining state formats and validation rules (Monochrome, MRC20)
 
 ## References
 
