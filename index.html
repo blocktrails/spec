@@ -176,11 +176,11 @@
   <main>
     <a href="https://blocktrails.org" class="back">← blocktrails.org</a>
 
-    <h1>Blocktrails <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.1)</span></h1>
+    <h1>Blocktrails <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.2)</span></h1>
     <p class="tagline">Nostr-native output-key commitment chaining on Bitcoin.</p>
 
     <h2>Definition</h2>
-    <p>A <strong>Blocktrail</strong> is a sequence of P2TR key-path outputs where each output key is the base key tweaked by <code>H(state)</code>, and spending the output advances the trail to a new committed state.</p>
+    <p>A <strong>Blocktrail</strong> is a sequence of P2TR key-path outputs where each output key is derived by cumulatively tweaking the base key. Each state transition adds a new tweak, and spending the output advances the trail to the next committed state.</p>
 
     <h2>Key Representation</h2>
     <p>Blocktrails operate on full secp256k1 private keys and public keys internally, as used by Nostr. State transitions are defined as scalar additions to the private key. When committing state to Bitcoin, the corresponding public key is encoded as a Taproot output key by taking its x-coordinate. Verification compares x-coordinates only.</p>
@@ -195,12 +195,26 @@
     <p>Key encodings such as <code>nsec</code>, <code>npub</code>, or compressed public keys are out of scope and may be used freely by applications.</p>
 
     <h2>Mechanism</h2>
-    <p>For state <code>s</code>:</p>
+    <p>Blocktrails use <strong>chained tweaking</strong>: each state transition adds a scalar tweak to the previous key, forming a cryptographic chain that mirrors the spend chain.</p>
+
+    <p>For genesis state <code>s₀</code>:</p>
     <ol>
-      <li>Compute <code>t = scalar(s)</code></li>
-      <li>Private key: <code>d = d_base + t</code></li>
-      <li>Public key: <code>P = d·G</code> (equivalently, <code>P = P_base + t·G</code>)</li>
+      <li>Compute <code>t₀ = scalar(s₀)</code></li>
+      <li>Private key: <code>d₀ = d_base + t₀</code></li>
+      <li>Public key: <code>P₀ = P_base + t₀·G</code></li>
     </ol>
+
+    <p>For transition to state <code>sᵢ</code>:</p>
+    <ol>
+      <li>Compute <code>tᵢ = scalar(sᵢ)</code></li>
+      <li>Private key: <code>dᵢ = dᵢ₋₁ + tᵢ</code></li>
+      <li>Public key: <code>Pᵢ = Pᵢ₋₁ + tᵢ·G</code></li>
+    </ol>
+
+    <p>Equivalently, the cumulative tweak is the sum of all state scalars:</p>
+    <pre><code>dₙ = d_base + t₀ + t₁ + ... + tₙ
+Pₙ = P_base + (t₀ + t₁ + ... + tₙ)·G</code></pre>
+
     <p><code>H</code> is SHA-256 unless otherwise specified by the application.</p>
 
     <h3>Hash-to-scalar reduction</h3>
@@ -259,23 +273,26 @@ output₀ = p2tr_xonly(P₀)</code></pre>
 
     <h3>Transition</h3>
     <pre><code>tᵢ = scalar(stateᵢ)
-dᵢ = d_base + tᵢ
-Pᵢ = dᵢ·G
+dᵢ = dᵢ₋₁ + tᵢ
+Pᵢ = Pᵢ₋₁ + tᵢ·G
 outputᵢ = p2tr_xonly(Pᵢ)</code></pre>
     <p>Sign with <code>dᵢ₋₁</code> to spend previous output. Create new output with witness program <code>outputᵢ</code>.</p>
+    <p>Note: The spending key accumulates all previous tweaks. At state <code>n</code>:</p>
+    <pre><code>dₙ = d_base + t₀ + t₁ + ... + tₙ</code></pre>
 
     <h3>Verify</h3>
     <pre><code>verify(P_base, genesis_outpoint, states[]) → bool:
   outpoint = genesis_outpoint
+  P = P_base
 
   for state in states:
     t = scalar(state)    // rejects if t = 0
-    P = P_base + t·G
+    P = P + t·G          // chain the tweak
     if x(P) ≠ witness_program(outpoint): return false
     outpoint = spending_outpoint(outpoint)
 
   return is_unspent(outpoint)</code></pre>
-    <p>Since <code>x(P) == x(-P)</code>, verification simply compares x-coordinates. No parity handling needed.</p>
+    <p>Verification chains the tweaks: each state adds to the running public key. Since <code>x(P) == x(-P)</code>, comparison uses x-coordinates only. No parity handling needed.</p>
     <p>To locate the spending transaction for a given outpoint, implementations MAY use any standard Bitcoin data source: full node with indexing, Electrum-style servers, or externally published transaction feeds.</p>
 
     <h3>SPV compatibility and data dependencies</h3>
