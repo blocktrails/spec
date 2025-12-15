@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blocktrails Specification</title>
+  <meta name="description" content="Nostr-native output-key commitment chaining on Bitcoin — Specification">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #7d8590;
+      --accent: #f7931a;
+      --code-bg: #161b22;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+    main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 2rem 4rem;
+    }
+    .back {
+      display: inline-block;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+    .back:hover { color: var(--accent); }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .tagline {
+      font-size: 1.1rem;
+      color: var(--muted);
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+      color: var(--fg);
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    h2:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      color: var(--fg);
+    }
+    p {
+      margin-bottom: 1rem;
+      color: var(--fg);
+    }
+    ul, ol {
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+    }
+    li {
+      margin-bottom: 0.5rem;
+      color: var(--fg);
+    }
+    strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    code {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 0.9em;
+      background: var(--code-bg);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      color: #a5d6ff;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--fg);
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    td {
+      color: var(--fg);
+    }
+    td:first-child {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .ascii-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: var(--muted);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 3rem 0;
+    }
+    .footer-tagline {
+      color: var(--muted);
+      font-style: italic;
+      text-align: center;
+      margin-top: 2rem;
+    }
+    .version {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="https://blocktrails.github.io" class="back">← blocktrails.github.io</a>
+
+    <h1>Blocktrails</h1>
+    <p class="tagline">Nostr-native output-key commitment chaining on Bitcoin.</p>
+
+    <h2>Definition</h2>
+    <p>A <strong>Blocktrail</strong> is a sequence of P2TR key-path outputs where each output key is the base key tweaked by <code>H(state)</code>, and spending the output advances the trail to a new committed state.</p>
+
+    <h2>Key Representation</h2>
+    <p>Blocktrails operate on full secp256k1 private keys and public keys internally, as used by Nostr. State transitions are defined as scalar additions to the private key. When committing state to Bitcoin, the corresponding public key is encoded as a Taproot output key by taking its x-coordinate. Verification compares x-coordinates only.</p>
+    <p>This preserves:</p>
+    <ul>
+      <li><strong>Scalar arithmetic</strong>: <code>privkey + t</code> just works</li>
+      <li><strong>Vanity generation</strong>: grind keys without parity concerns</li>
+      <li><strong>Nostr compatibility</strong>: same key model</li>
+      <li><strong>Composability</strong>: standard secp256k1 tooling</li>
+    </ul>
+    <p>Parity normalization is an output encoding concern, not a state or semantic concern.</p>
+    <p>Key encodings such as <code>nsec</code>, <code>npub</code>, or compressed public keys are out of scope and may be used freely by applications.</p>
+
+    <h2>Mechanism</h2>
+    <p>For state <code>s</code>:</p>
+    <ol>
+      <li>Compute <code>t = H(serialize(s))</code> interpreted as 256-bit big-endian integer, reduced mod <code>n</code></li>
+      <li>Private key: <code>d = d_base + t</code></li>
+      <li>Public key: <code>P = d·G</code> (equivalently, <code>P = P_base + t·G</code>)</li>
+    </ol>
+    <p><code>H</code> is SHA-256 unless otherwise specified by the application.</p>
+    <p>If <code>t = 0</code>, the state MUST be rejected as invalid (probability ~2<sup>-256</sup>).</p>
+    <p>The base key <code>d_base</code> is immutable for a given trail. Rotation requires starting a new trail.</p>
+    <p>Fees are paid from the current head output. When balance runs low, top-up (see Scope) adds funds.</p>
+    <p>Boundary encoding for P2TR output:</p>
+    <pre><code>p2tr_xonly(P) → bytes32:
+  if y(P) is even: return x(P)
+  else: return x(-P)</code></pre>
+    <p>The witness program is <code>p2tr_xonly(P)</code>. Signing uses the corresponding (possibly negated) private key per BIP-340.</p>
+    <p>Spending this output advances the trail to the next committed state.</p>
+
+    <h2>Constraints</h2>
+    <p>Blocktrails use P2TR key-path only and do not require tapscript, script trees, or script-path spends. The only mechanism used is public-key tweaking.</p>
+    <p>No domain separation is applied; the commitment binds exactly to the serialized state bytes. This is deliberate — simplicity is a goal. Applications requiring domain separation can include it in their <code>serialize()</code> function.</p>
+
+    <h2>Components</h2>
+    <table>
+      <tr><th>Component</th><th>Description</th></tr>
+      <tr><td>Commitment carrier</td><td>Tweaked public key (full point)</td></tr>
+      <tr><td>State head</td><td>Currently unspent output</td></tr>
+      <tr><td>History</td><td>The spend chain</td></tr>
+    </table>
+
+    <h2>Design Goals</h2>
+    <table>
+      <tr><th>Goal</th><th>How</th></tr>
+      <tr><td>Minimal on-chain footprint</td><td>One P2TR output per state update</td></tr>
+      <tr><td>Standardness-friendly</td><td>Key-path spends only</td></tr>
+      <tr><td>External state</td><td>State bytes live off-chain; chain anchors integrity</td></tr>
+      <tr><td>Single-writer</td><td>One controlling base key (multi-writer requires extra protocol)</td></tr>
+    </table>
+
+    <h2>Scope</h2>
+    <p>Blocktrails intentionally specify only the minimal primitive required for interoperable verification: commitment-by-output-key and linear progression by spends.</p>
+    <p>Many lifecycle behaviors — top-up, third-party payments, transfer of control, explicit closure — are compositions of ordinary Bitcoin spends and do not change the core verification rule. This document treats them as optional extensions.</p>
+    <p>In practice, <strong>top-up</strong> is the only liveness-oriented convention that may be widely needed, since trail progression is fee-bounded.</p>
+
+    <h2>Operations</h2>
+
+    <h3>Genesis</h3>
+    <pre><code>t₀ = H(serialize(state₀)) mod n
+d₀ = d_base + t₀
+P₀ = d₀·G
+output₀ = p2tr_xonly(P₀)</code></pre>
+    <p>Create P2TR output with witness program <code>output₀</code>. Holder knows <code>d₀</code>.</p>
+
+    <h3>Transition</h3>
+    <pre><code>tᵢ = H(serialize(stateᵢ)) mod n
+dᵢ = d_base + tᵢ
+Pᵢ = dᵢ·G
+outputᵢ = p2tr_xonly(Pᵢ)</code></pre>
+    <p>Sign with <code>dᵢ₋₁</code> to spend previous output. Create new output with witness program <code>outputᵢ</code>.</p>
+
+    <h3>Verify</h3>
+    <pre><code>verify(P_base, genesis_outpoint, states[]) → bool:
+  outpoint = genesis_outpoint
+
+  for state in states:
+    t = H(serialize(state)) mod n
+    P = P_base + t·G
+    if x(P) ≠ witness_program(outpoint): return false
+    outpoint = spending_outpoint(outpoint)
+
+  return is_unspent(outpoint)</code></pre>
+    <p>Since <code>x(P) == x(-P)</code>, verification simply compares x-coordinates. No parity handling needed.</p>
+    <p>To locate the spending transaction for a given outpoint, implementations MAY use any standard Bitcoin data source: full node with indexing, Electrum-style servers, or externally published transaction feeds.</p>
+    <p>Blocktrails are SPV-compatible. Verification requires only output keys and merkle inclusion proofs — no full node necessary.</p>
+
+    <h2>Interface</h2>
+    <p>Applications implement:</p>
+    <pre><code>serialize(state) → bytes
+validate(prev, next) → bool</code></pre>
+    <p>The primitive handles commitment and chaining. Applications define state format and transition rules.</p>
+
+    <h2>Guarantees</h2>
+    <p>This primitive provides:</p>
+    <ul>
+      <li><strong>Integrity</strong> of state commitments</li>
+      <li><strong>Ordering</strong> relative to the spend chain</li>
+      <li><strong>Finality</strong> — probabilistic via Bitcoin proof-of-work; applications SHOULD wait k confirmations</li>
+    </ul>
+
+    <h2>Non-Guarantees</h2>
+    <p>This primitive does not provide:</p>
+    <ul>
+      <li><strong>On-chain rule enforcement</strong> — <code>validate(prev, next)</code> is checked client-side</li>
+      <li><strong>State availability</strong> — state distribution requires a separate channel</li>
+    </ul>
+
+    <h2>Security Assumptions</h2>
+    <table>
+      <tr><th>Assumption</th><th>Guarantees</th></tr>
+      <tr><td>Hash preimage resistance</td><td>State binding</td></tr>
+      <tr><td>Discrete log hardness</td><td>Output key security</td></tr>
+      <tr><td>Bitcoin consensus</td><td>Spend ordering, double-spend prevention</td></tr>
+    </table>
+
+    <h2>Threat Model</h2>
+
+    <h3>What Blocktrails protect against</h3>
+    <table>
+      <tr><th>Threat</th><th>Mitigation</th></tr>
+      <tr><td>State forgery</td><td>Hash commitment — cannot find <code>s'</code> where <code>H(s') = H(s)</code></td></tr>
+      <tr><td>History rewriting</td><td>Bitcoin immutability — confirmed spends are final</td></tr>
+      <tr><td>Double-spending state</td><td>UTXO model — each output spendable exactly once</td></tr>
+      <tr><td>Ordering disputes</td><td>Blockchain provides canonical order</td></tr>
+    </table>
+
+    <h3>What Blocktrails do NOT protect against</h3>
+    <table>
+      <tr><th>Threat</th><th>Why</th><th>Mitigation</th></tr>
+      <tr><td>Key compromise</td><td>Holder of <code>d_base</code> controls all transitions</td><td>Secure key storage</td></tr>
+      <tr><td>State withholding</td><td>State lives off-chain</td><td>Redundant state distribution</td></tr>
+      <tr><td>Invalid state transitions</td><td>Validation is client-side</td><td>Verifiers must check <code>validate(prev, next)</code></td></tr>
+      <tr><td>Censorship</td><td>Depends on Bitcoin transaction inclusion</td><td>Standard Bitcoin censorship resistance</td></tr>
+      <tr><td>Front-running</td><td>Miner can see pending state in mempool</td><td>Commit-reveal if state must be private</td></tr>
+    </table>
+
+    <h3>Trust boundaries</h3>
+    <div class="ascii-box">┌─────────────────────────────────────────────┐
+│            Trusted (cryptography)           │
+│  - Hash binds state to output key           │
+│  - Signature proves key knowledge           │
+│  - Bitcoin prevents double-spend            │
+└─────────────────────────────────────────────┘
+                      │
+┌─────────────────────────────────────────────┐
+│         Untrusted (application layer)       │
+│  - State availability                       │
+│  - Transition validity                      │
+│  - Semantic correctness                     │
+└─────────────────────────────────────────────┘</div>
+
+    <h3>Failure modes</h3>
+    <table>
+      <tr><th>Failure</th><th>Consequence</th><th>Recovery</th></tr>
+      <tr><td>Lost <code>d_base</code></td><td>Cannot advance trail</td><td>None — funds/state locked</td></tr>
+      <tr><td>Lost state history</td><td>Cannot verify trail</td><td>Restore from backup/peers</td></tr>
+      <tr><td>Invalid transition accepted</td><td>Verifiers reject; chain forks semantically</td><td>Social consensus on valid branch</td></tr>
+      <tr><td>Bitcoin reorg</td><td>Recent transitions may revert</td><td>Wait for confirmations</td></tr>
+    </table>
+
+    <h2>References</h2>
+    <ul>
+      <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki">BIP-340: Schnorr Signatures</a></li>
+      <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki">BIP-341: Taproot</a></li>
+    </ul>
+
+    <hr>
+    <p class="footer-tagline">Blocktrails: Nostr-native state on Bitcoin.</p>
+
+  </main>
+</body>
+</html>
