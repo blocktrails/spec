@@ -1,4 +1,4 @@
-# Blocktrails (v0.2)
+# Blocktrails (v0.1)
 
 Nostr-native output-key commitment chaining on Bitcoin.
 
