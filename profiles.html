@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blocktrails Profiles Specification</title>
+  <meta name="description" content="Application-layer profiles for Blocktrails — Monochrome and MRC20">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #7d8590;
+      --accent: #f7931a;
+      --code-bg: #161b22;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+    main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 2rem 4rem;
+    }
+    .back {
+      display: inline-block;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+    .back:hover { color: var(--accent); }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .tagline {
+      font-size: 1.1rem;
+      color: var(--muted);
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+      color: var(--fg);
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    h2:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      color: var(--fg);
+    }
+    p {
+      margin-bottom: 1rem;
+      color: var(--fg);
+    }
+    ul, ol {
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+    }
+    li {
+      margin-bottom: 0.5rem;
+      color: var(--fg);
+    }
+    strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    code {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 0.9em;
+      background: var(--code-bg);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      color: #a5d6ff;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--fg);
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    td {
+      color: var(--fg);
+    }
+    td:first-child {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .ascii-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: var(--muted);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 3rem 0;
+    }
+    .footer-tagline {
+      color: var(--muted);
+      font-style: italic;
+      text-align: center;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="./" class="back">← Blocktrails Core</a>
+
+    <h1>Blocktrails Profiles <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.1)</span></h1>
+    <p class="tagline">Application-layer profiles defining state formats and validation rules.</p>
+
+    <h2>Abstract</h2>
+    <p>This document defines the Blocktrails profile system and the Monochrome profile framework for building client-validated state contracts on Bitcoin. It includes MRC20, an issuer-controlled fungible token profile.</p>
+
+    <h2>1. Introduction</h2>
+    <p>Blocktrails defines a minimal primitive for anchoring and ordering off-chain state using Bitcoin P2TR output-key commitments. It provides ordering and integrity but does not define application semantics.</p>
+    <p><strong>Profiles</strong> extend Blocktrails with meaning. A profile specifies:</p>
+    <ul>
+      <li>State format</li>
+      <li>Validation rules</li>
+      <li>Operation semantics</li>
+    </ul>
+    <p>Profiles do not modify Blocktrails Core verification.</p>
+
+    <h2>2. Profile Model</h2>
+
+    <h3>2.1 Identification</h3>
+    <p>A profile is identified by a stable string:</p>
+    <pre><code>profile_id := &lt;namespace&gt;.&lt;name&gt;.&lt;version&gt;</code></pre>
+    <p>Examples:</p>
+    <pre><code>mono.monochrome.v0.1
+mono.mrc20.v0.1</code></pre>
+
+    <h3>2.2 Requirements</h3>
+    <p>A profile MUST:</p>
+    <ul>
+      <li>Be compatible with Blocktrails Core verification</li>
+      <li>Operate on a single linear state chain</li>
+      <li>Use client-side validation only</li>
+      <li>Use JCS for canonical serialization</li>
+    </ul>
+    <p>A profile MUST NOT:</p>
+    <ul>
+      <li>Require tapscript or script-path spends</li>
+      <li>Require on-chain rule enforcement</li>
+      <li>Alter output-key commitment semantics</li>
+    </ul>
+
+    <h2>3. Canonical Serialization</h2>
+    <p>Profiles use <strong>JCS (JSON Canonicalization Scheme, RFC 8785)</strong> for deterministic hashing.</p>
+
+    <h3>3.1 Rules</h3>
+    <ul>
+      <li>UTF-8 encoding</li>
+      <li>No whitespace between tokens</li>
+      <li>Object keys sorted lexicographically</li>
+      <li>No duplicate keys</li>
+      <li>Numbers as shortest decimal (no scientific notation)</li>
+    </ul>
+
+    <h3>3.2 State Hash and Scalar</h3>
+    <p>Profiles define <code>serialize(state) := jcs(state)</code>. The Blocktrails Core <code>scalar()</code> function is then:</p>
+    <pre><code>scalar(state) := int(sha256(jcs(state)), big-endian) mod n</code></pre>
+    <p>Serialization MUST be canonical and byte-stable: the same logical state MUST always produce identical bytes. JCS provides this guarantee.</p>
+    <p>The resulting tweak MUST be in the range [1, n-1]. If <code>scalar(state) = 0</code>, the state MUST be rejected (probability ~2<sup>-256</sup>).</p>
+    <p><strong>Note on collisions:</strong> A hash collision is catastrophic by construction — it breaks commitment binding, not merely on-chain distinguishability. Two different states producing the same <code>scalar()</code> value would share an output key, creating semantic ambiguity: verifiers cannot determine which state was intended.</p>
+
+    <h2>4. Common Encodings</h2>
+
+    <h3>4.1 Public Keys</h3>
+    <pre><code>&lt;pubkey&gt; := 32-byte x-only secp256k1 public key, hex-encoded (64 characters, lowercase)</code></pre>
+    <p>Profiles use x-only pubkeys as account identifiers (e.g., token holders in MRC20). Issuer authority is separate — it derives from the Blocktrails spend signer (<code>d_base</code> holder), not from account pubkeys.</p>
+    <p>Nostr <code>npub</code> keys can be converted by bech32-decoding to the 32-byte x-only key; no parity adjustment is needed.</p>
+
+    <h3>4.2 Hashes</h3>
+    <pre><code>&lt;hex64&gt; := 32-byte SHA-256 hash, hex-encoded (64 characters, lowercase)</code></pre>
+
+    <h3>4.3 Integers</h3>
+    <p>Integers are JSON numbers with no fractional component. Values MUST NOT exceed 2<sup>53</sup>-1 (JSON safe integer limit). Values above this limit are invalid.</p>
+    <p>Note: While fields are documented as <code>&lt;uint64&gt;</code> for clarity, the JSON-safe subset applies.</p>
+
+    <h2>5. URN Vocabulary</h2>
+    <p>Operations MUST use URN identifiers:</p>
+    <table>
+      <tr><th>URN</th><th>Operation</th></tr>
+      <tr><td>urn:mono:op:set</td><td>Set key-value</td></tr>
+      <tr><td>urn:mono:op:mint</td><td>Create units</td></tr>
+      <tr><td>urn:mono:op:transfer</td><td>Move units</td></tr>
+      <tr><td>urn:mono:op:burn</td><td>Destroy units</td></tr>
+      <tr><td>urn:mono:op:append</td><td>Append to log</td></tr>
+    </table>
+    <p>Short-form operation names (e.g., <code>"op": "mint"</code>) are invalid. Implementations MUST reject states using non-URN operation identifiers.</p>
+
+    <h3>5.1 URN Extensibility</h3>
+    <p>The <code>urn:mono:</code> namespace is currently unregistered and defined by convention.</p>
+    <p><strong>Normative constraint:</strong> Third parties MUST NOT define new operations under <code>urn:mono:op:</code> without governance by the Blocktrails/Monochrome specification maintainers. Namespace squatting creates ambiguity for verifiers.</p>
+    <p>Profile authors MAY define additional operations under their own namespace (e.g., <code>urn:myorg:op:custom</code>).</p>
+
+    <h2>6. Monochrome Profile Framework (v0.1)</h2>
+
+    <h3>6.1 Purpose</h3>
+    <p>Monochrome is a minimal profile framework for linear client-side state contracts. One active state at a time, no branching, no concealment, no concurrency.</p>
+
+    <h3>6.2 Profile ID</h3>
+    <pre><code>mono.monochrome.v0.1</code></pre>
+
+    <h3>6.3 Contract Identity</h3>
+    <pre><code>contract_id := sha256("blocktrails.contract" || genesis_outpoint || P_base_xonly || profile_id)</code></pre>
+    <p>The <code>"blocktrails.contract"</code> prefix provides domain separation to prevent cross-protocol identifier collisions.</p>
+    <p><strong>Rationale:</strong> The parent spec explicitly omits domain separation for state commitments (simplicity; context is already bound to outpoint + base key). Contract identifiers are different: they are cross-protocol references used outside the commitment context, so domain separation is warranted here.</p>
+
+    <h3>6.4 Base State Schema</h3>
+    <pre><code>{
+  "profile": &lt;string&gt;,
+  "seq": &lt;uint64&gt;,
+  "prev": &lt;hex64&gt;,
+  "ops": [ &lt;operation&gt; ]
+}</code></pre>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>profile</td><td>string</td><td>Profile identifier</td></tr>
+      <tr><td>seq</td><td>integer</td><td>Sequence number, starts at 0</td></tr>
+      <tr><td>prev</td><td>hex64</td><td><code>sha256(serialize(previous_state))</code>, 64 zeros for genesis</td></tr>
+      <tr><td>ops</td><td>array</td><td>Operations applied in this transition</td></tr>
+    </table>
+    <p>The <code>ops</code> array contains only the operations applied in this state transition, not a cumulative log.</p>
+
+    <h3>6.5 Base Validation</h3>
+    <p>A transition is valid if:</p>
+    <ol>
+      <li>Blocktrails Core verification succeeds</li>
+      <li><code>seq</code> increments by exactly 1</li>
+      <li><code>prev</code> equals <code>sha256(serialize(previous_state))</code></li>
+      <li>All operations use valid URN identifiers</li>
+      <li>All operations are well-formed per profile schema</li>
+    </ol>
+
+    <h3>6.6 Authorization</h3>
+    <p>The signer of the Blocktrails spend is the sole authority for state transitions. This is a <strong>single-writer model</strong>.</p>
+
+    <h2>7. MRC20: Fungible Token Profile (v0.1)</h2>
+
+    <h3>7.1 Purpose</h3>
+    <p>MRC20 is a minimal fungible token profile built on Monochrome.</p>
+
+    <h3>7.2 Authority Model</h3>
+    <p><strong>MRC20 is an issuer-controlled ledger.</strong></p>
+    <p>The holder of the Blocktrails base key (<code>d_base</code>) has full authority over all operations, including:</p>
+    <ul>
+      <li>Minting to any address</li>
+      <li>Transferring from any address</li>
+      <li>Burning from any address</li>
+    </ul>
+    <p>This is analogous to a centralized ledger with cryptographic auditability. The issuer cannot forge history, but can authorize any valid state transition.</p>
+    <p><strong>Implications:</strong></p>
+    <ul>
+      <li>Users trust the issuer not to act maliciously</li>
+      <li>All operations are publicly auditable</li>
+      <li>The issuer cannot rewrite confirmed history</li>
+    </ul>
+
+    <h3>7.2.1 Trust Through Observed Auditability</h3>
+    <p>MRC20 operates on an <strong>earned trust model</strong>. The issuer cannot:</p>
+    <ul>
+      <li>Forge historical states (hash-bound)</li>
+      <li>Reorder past transitions (Bitcoin-anchored)</li>
+      <li>Hide operations from verifiers (explicit state)</li>
+    </ul>
+    <p>Trust is established through:</p>
+    <ol>
+      <li><strong>Complete history visibility</strong> — Any party can replay and verify all transitions</li>
+      <li><strong>Immutable audit trail</strong> — Misbehavior is permanently recorded</li>
+      <li><strong>Reputation at stake</strong> — Observed honesty over time builds confidence</li>
+    </ol>
+    <p>This differs from trustless systems (e.g., Bitcoin L1) where rules are enforced by consensus. In MRC20, rules are enforced by <strong>social accountability</strong> — the issuer <em>can</em> misbehave, but <em>cannot hide</em> misbehavior.</p>
+    <p><strong>Practical implication:</strong> Users should verify issuer history before accepting tokens. Long-running contracts with clean histories are more trustworthy than new ones.</p>
+
+    <h3>7.3 Profile ID</h3>
+    <pre><code>mono.mrc20.v0.1</code></pre>
+
+    <h3>7.4 State Schema</h3>
+    <pre><code>{
+  "profile": "mono.mrc20.v0.1",
+  "seq": &lt;uint64&gt;,
+  "prev": &lt;hex64&gt;,
+  "ops": [ &lt;operation&gt; ],
+  "balances": { "&lt;pubkey&gt;": &lt;uint64&gt; },
+  "supply": &lt;uint64&gt;,
+  "name": &lt;string&gt;,
+  "ticker": &lt;string&gt;,
+  "decimals": &lt;uint8&gt;
+}</code></pre>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Required</th><th>Mutable</th></tr>
+      <tr><td>profile</td><td>string</td><td>Yes</td><td>No</td></tr>
+      <tr><td>seq</td><td>integer</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>prev</td><td>hex64</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>ops</td><td>array</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>balances</td><td>object</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>supply</td><td>integer</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>name</td><td>string</td><td>Yes</td><td>No</td></tr>
+      <tr><td>ticker</td><td>string</td><td>Yes</td><td>No</td></tr>
+      <tr><td>decimals</td><td>integer</td><td>Yes</td><td>No</td></tr>
+    </table>
+    <p><strong>Integer limits:</strong> Per Section 4.3, all integer values are constrained to 2<sup>53</sup>-1. For MRC20, this means maximum representable balance or supply per contract is 9,007,199,254,740,991 base units. With 8 decimals, this is ~90 million tokens.</p>
+
+    <h3>7.5 State Computation Model</h3>
+    <p><strong><code>ops</code> is authoritative. <code>balances</code> and <code>supply</code> are computed state.</strong></p>
+    <p>Verifiers MUST:</p>
+    <ol>
+      <li>Start from genesis state (<code>balances: {}</code>, <code>supply: 0</code>)</li>
+      <li>Apply each operation in sequence</li>
+      <li>Verify computed <code>balances</code> and <code>supply</code> match the state exactly</li>
+    </ol>
+    <p>Transition verification is local: it only requires the previous state <code>S</code> and the new state <code>S'</code>. Full-chain replay from genesis is also valid and produces equivalent results.</p>
+
+    <h3>7.6 Operations</h3>
+    <p><strong>MINT</strong></p>
+    <pre><code>{ "op": "urn:mono:op:mint", "to": "&lt;pubkey&gt;", "amt": &lt;uint64&gt; }</code></pre>
+    <p><strong>TRANSFER</strong></p>
+    <pre><code>{ "op": "urn:mono:op:transfer", "from": "&lt;pubkey&gt;", "to": "&lt;pubkey&gt;", "amt": &lt;uint64&gt; }</code></pre>
+    <p><strong>BURN</strong></p>
+    <pre><code>{ "op": "urn:mono:op:burn", "from": "&lt;pubkey&gt;", "amt": &lt;uint64&gt; }</code></pre>
+
+    <h3>7.7 Validation Rules</h3>
+    <p>A transition from <code>S</code> to <code>S'</code> is valid if:</p>
+    <ol>
+      <li><code>S'.profile == "mono.mrc20.v0.1"</code></li>
+      <li><code>S'.seq == S.seq + 1</code></li>
+      <li><code>S'.prev == sha256(serialize(S))</code></li>
+      <li>Immutable fields unchanged: <code>name</code>, <code>ticker</code>, <code>decimals</code></li>
+      <li>All operations use URN identifiers</li>
+      <li>For each operation, computed deltas are valid</li>
+      <li><code>S'.balances</code> equals computed balances after applying all ops</li>
+      <li><code>S'.supply</code> equals computed supply after applying all ops</li>
+      <li>Blocktrails spend signed by issuer (<code>d_base</code> holder)</li>
+    </ol>
+    <table>
+      <tr><th>Op</th><th>Precondition</th><th>Effect</th></tr>
+      <tr><td>MINT</td><td>—</td><td><code>balances[to] += amt</code>; <code>supply += amt</code></td></tr>
+      <tr><td>TRANSFER</td><td><code>balances[from] >= amt</code></td><td><code>balances[from] -= amt</code>; <code>balances[to] += amt</code></td></tr>
+      <tr><td>BURN</td><td><code>balances[from] >= amt</code></td><td><code>balances[from] -= amt</code>; <code>supply -= amt</code></td></tr>
+    </table>
+
+    <h3>7.8 Genesis State</h3>
+    <pre><code>{
+  "profile": "mono.mrc20.v0.1",
+  "seq": 0,
+  "prev": "0000000000000000000000000000000000000000000000000000000000000000",
+  "ops": [],
+  "balances": {},
+  "supply": 0,
+  "name": "Example Token",
+  "ticker": "EXT",
+  "decimals": 8
+}</code></pre>
+
+    <h2>8. Security Considerations</h2>
+
+    <h3>8.1 Inherited from Blocktrails Core</h3>
+    <ul>
+      <li>Hash preimage resistance → state binding</li>
+      <li>Discrete log hardness → output key security</li>
+      <li>Bitcoin consensus → spend ordering</li>
+    </ul>
+
+    <h3>8.2 Profile-Specific</h3>
+    <table>
+      <tr><th>Threat</th><th>Mitigation</th></tr>
+      <tr><td>Invalid state accepted</td><td>Client MUST validate all transitions</td></tr>
+      <tr><td>Balance manipulation</td><td>Recompute from ops, verify match</td></tr>
+      <tr><td>Issuer misbehavior</td><td>Publicly auditable; cannot rewrite history</td></tr>
+      <tr><td>State withholding</td><td>Redundant state distribution</td></tr>
+    </table>
+
+    <h3>8.3 Trust Boundaries</h3>
+    <div class="ascii-box">┌─────────────────────────────────────┐
+│     Trusted (Blocktrails Core)      │
+│  - Commitment integrity             │
+│  - Spend ordering                   │
+│  - Double-spend prevention          │
+└─────────────────────────────────────┘
+                  │
+┌─────────────────────────────────────┐
+│     Trusted (MRC20 Issuer)          │
+│  - Honest operation authorization   │
+│  - State availability               │
+└─────────────────────────────────────┘
+                  │
+┌─────────────────────────────────────┐
+│     Untrusted (Verifiable)          │
+│  - Transition validity              │
+│  - Balance correctness              │
+│  - History integrity                │
+└─────────────────────────────────────┘</div>
+
+    <h2>9. Non-Goals</h2>
+    <p>This specification does not provide:</p>
+    <ul>
+      <li>Confidentiality</li>
+      <li>Zero-knowledge proofs</li>
+      <li>DAG state graphs</li>
+      <li>Script-enforced logic</li>
+      <li>Multi-writer concurrency</li>
+      <li>Self-sovereign account authorization</li>
+      <li>Allowances/approvals</li>
+    </ul>
+
+    <h2>10. Relationship to RGB</h2>
+    <p>Monochrome occupies similar design space to RGB with different trade-offs:</p>
+    <table>
+      <tr><th>Aspect</th><th>Monochrome/MRC20</th><th>RGB</th></tr>
+      <tr><td>State model</td><td>Linear</td><td>DAG</td></tr>
+      <tr><td>Visibility</td><td>Explicit</td><td>Concealed</td></tr>
+      <tr><td>Complexity</td><td>Minimal</td><td>Expressive</td></tr>
+      <tr><td>Authority</td><td>Issuer-controlled</td><td>Self-sovereign</td></tr>
+      <tr><td>Validation</td><td>JSON + JCS</td><td>Strict types</td></tr>
+    </table>
+
+    <h2>11. References</h2>
+    <ul>
+      <li><a href="https://www.rfc-editor.org/rfc/rfc8785">RFC 8785: JSON Canonicalization Scheme</a></li>
+      <li><a href="./">Blocktrails Core Specification</a></li>
+      <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki">BIP-340: Schnorr Signatures</a></li>
+      <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki">BIP-341: Taproot</a></li>
+    </ul>
+
+    <h2>12. Summary</h2>
+    <table>
+      <tr><th>Layer</th><th>Purpose</th></tr>
+      <tr><td>Blocktrails Core</td><td>Ordering and anchoring</td></tr>
+      <tr><td>Monochrome</td><td>Profile framework</td></tr>
+      <tr><td>MRC20</td><td>Issuer-controlled fungible tokens</td></tr>
+    </table>
+
+    <hr>
+    <p class="footer-tagline">Blocktrails Profiles v0.1 — Minimal client-validated state on Bitcoin.</p>
+
+  </main>
+</body>
+</html>
