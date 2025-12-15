@@ -308,6 +308,16 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(commitₙ) × G</div>
 
   return { valid: false, error: "pubkey mismatch" }</code></pre>
 
+    <h3>6.3 Commit Selection and Ordering</h3>
+    <p>Commits anchored to the TXO chain need not be consecutive in git history. Any commit may be selected for marking. However:</p>
+    <ul>
+      <li>Marked commits SHOULD be in ancestral order (each marked commit is a descendant of the previous)</li>
+      <li>The TXO chain records the order commits were marked</li>
+      <li>Verifiers SHOULD confirm referenced commits exist in the repository</li>
+      <li>Verifiers MAY check that commits form a valid ancestral chain in git</li>
+    </ul>
+    <p>The EC_ADD verification ensures pubkey chain integrity. Git ancestry verification is an additional check that confirms the logical ordering of state transitions.</p>
+
     <h2>7. Comparison with Monochrome</h2>
     <table>
       <tr><th>Aspect</th><th>Git-mark</th><th>Monochrome</th></tr>
