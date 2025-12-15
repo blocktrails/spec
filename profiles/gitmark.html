@@ -178,7 +178,7 @@
     <p>Git-mark binds Bitcoin UTXOs to Git commits using elliptic curve tweaking. Each commit hash becomes a scalar tweak that derives a new pubkey, creating a cryptographic chain linking repository history to Bitcoin.</p>
 
     <h2>1. Introduction</h2>
-    <p>Git-mark uses <a href="https://petertodd.org/2016/commitments-and-single-use-seals">single-use seals</a> to create a two-way binding between Git and Bitcoin:</p>
+    <p>Git-mark creates a two-way binding between Git and Bitcoin:</p>
     <ul>
       <li><strong>Git → Bitcoin:</strong> Commit hash tweaks the pubkey, recorded on-chain</li>
       <li><strong>Bitcoin → Git:</strong> TXO URI in repository points to the UTXO</li>
@@ -196,10 +196,11 @@ Commit 2:  P₂ = P₁ + scalar(commit₂) × G       (tweaked by second commit)
 Commit n:  Pₙ = Pₙ₋₁ + scalar(commitₙ) × G</div>
 
     <h3>2.2 Scalar Function</h3>
-    <p>For git-mark, the scalar is derived from the git commit hash:</p>
-    <pre><code>scalar(commit) := int(sha256(commit_hash), big-endian) mod n</code></pre>
-    <p>Where <code>commit_hash</code> is the 40-character hex git commit hash, and <code>n</code> is the secp256k1 curve order.</p>
-    <p>If <code>scalar(commit) = 0</code>, the commit MUST be rejected (probability ~2<sup>-256</sup>).</p>
+    <p>For git-mark, the scalar is the git commit hash interpreted as a big-endian integer:</p>
+    <pre><code>scalar(commit) := int(commit_hash, big-endian) mod n</code></pre>
+    <p>Where <code>commit_hash</code> is the 20-byte (40 hex character) git commit hash, and <code>n</code> is the secp256k1 curve order.</p>
+    <p>Since git uses SHA-1, the commit hash is already a cryptographic hash. No additional hashing is needed.</p>
+    <p>If <code>scalar(commit) = 0</code>, the commit MUST be rejected (probability ~2<sup>-160</sup>).</p>
 
     <h3>2.3 Private Key Derivation</h3>
     <p>The spending key for any state:</p>
@@ -357,7 +358,6 @@ git mark verify</code></pre>
     <ul>
       <li><a href="../">Blocktrails Core Specification</a></li>
       <li><a href="../profiles.html">Blocktrails Profiles</a></li>
-      <li><a href="https://petertodd.org/2016/commitments-and-single-use-seals">Single-Use Seals</a> — Peter Todd</li>
       <li><a href="https://git-mark.com">Legacy gitmark</a></li>
       <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki">BIP-340: Schnorr Signatures</a></li>
       <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki">BIP-341: Taproot</a></li>
