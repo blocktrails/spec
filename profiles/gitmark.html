@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Git-mark Profile Specification</title>
+  <meta name="description" content="Git commits anchored to Bitcoin via Blocktrails">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #7d8590;
+      --accent: #f7931a;
+      --code-bg: #161b22;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+    main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 2rem 4rem;
+    }
+    .back {
+      display: inline-block;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+    .back:hover { color: var(--accent); }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .tagline {
+      font-size: 1.1rem;
+      color: var(--muted);
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+      color: var(--fg);
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    h2:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      color: var(--fg);
+    }
+    p {
+      margin-bottom: 1rem;
+      color: var(--fg);
+    }
+    ul, ol {
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+    }
+    li {
+      margin-bottom: 0.5rem;
+      color: var(--fg);
+    }
+    strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    code {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 0.9em;
+      background: var(--code-bg);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      color: #a5d6ff;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--fg);
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    td {
+      color: var(--fg);
+    }
+    td:first-child {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .ascii-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: var(--muted);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 3rem 0;
+    }
+    .footer-tagline {
+      color: var(--muted);
+      font-style: italic;
+      text-align: center;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="../profiles.html" class="back">← Blocktrails Profiles</a>
+
+    <h1>Git-mark Profile <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.1)</span></h1>
+    <p class="tagline">Git commits anchored to Bitcoin via Blocktrails output-key commitments.</p>
+
+    <h2>Abstract</h2>
+    <p>Git-mark binds Bitcoin UTXOs to Git commits using elliptic curve tweaking. Each commit hash becomes a scalar tweak that derives a new pubkey, creating a cryptographic chain linking repository history to Bitcoin.</p>
+
+    <h2>1. Introduction</h2>
+    <p>Git-mark uses <a href="https://petertodd.org/2016/commitments-and-single-use-seals">single-use seals</a> to create a two-way binding between Git and Bitcoin:</p>
+    <ul>
+      <li><strong>Git → Bitcoin:</strong> Commit hash tweaks the pubkey, recorded on-chain</li>
+      <li><strong>Bitcoin → Git:</strong> TXO URI in repository points to the UTXO</li>
+    </ul>
+    <p>Unlike Monochrome profiles which use JCS-serialized state as the tweak source, git-mark uses Git commit hashes directly.</p>
+
+    <h2>2. Cryptographic Model</h2>
+
+    <h3>2.1 Chained Key Derivation</h3>
+    <p>Git-mark follows the Blocktrails chained derivation model:</p>
+    <div class="ascii-box">Genesis:   P₀ = d₀ × G                        (base pubkey)
+Commit 1:  P₁ = P₀ + scalar(commit₁) × G       (tweaked by first commit)
+Commit 2:  P₂ = P₁ + scalar(commit₂) × G       (tweaked by second commit)
+...
+Commit n:  Pₙ = Pₙ₋₁ + scalar(commitₙ) × G</div>
+
+    <h3>2.2 Scalar Function</h3>
+    <p>For git-mark, the scalar is derived from the git commit hash:</p>
+    <pre><code>scalar(commit) := int(sha256(commit_hash), big-endian) mod n</code></pre>
+    <p>Where <code>commit_hash</code> is the 40-character hex git commit hash, and <code>n</code> is the secp256k1 curve order.</p>
+    <p>If <code>scalar(commit) = 0</code>, the commit MUST be rejected (probability ~2<sup>-256</sup>).</p>
+
+    <h3>2.3 Private Key Derivation</h3>
+    <p>The spending key for any state:</p>
+    <pre><code>d_n = d₀ + scalar(commit₁) + scalar(commit₂) + ... + scalar(commitₙ)  (mod n)</code></pre>
+
+    <h2>3. TXO URI Format</h2>
+    <p>Git-mark uses TXO URIs to record the on-chain state:</p>
+    <pre><code>txo:&lt;network&gt;:&lt;txid&gt;:&lt;vout&gt;?amount=&lt;sats&gt;&amp;pubkey=&lt;hex&gt;[&amp;commit=&lt;git_hash&gt;]</code></pre>
+
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>network</td><td>string</td><td>Bitcoin network (<code>mainnet</code>, <code>tbtc4</code>, <code>signet</code>)</td></tr>
+      <tr><td>txid</td><td>hex64</td><td>Transaction ID (64 hex characters)</td></tr>
+      <tr><td>vout</td><td>integer</td><td>Output index</td></tr>
+      <tr><td>amount</td><td>integer</td><td>Value in satoshis</td></tr>
+      <tr><td>pubkey</td><td>hex64</td><td>X-only pubkey (64 hex characters)</td></tr>
+      <tr><td>commit</td><td>hex40</td><td>Git commit hash (absent for genesis)</td></tr>
+    </table>
+
+    <h3>3.1 Genesis TXO</h3>
+    <p>The genesis TXO has no <code>commit</code> parameter. Its pubkey is the base pubkey <code>P₀</code>:</p>
+    <pre><code>txo:tbtc4:34cea31b...e854be0e:0?amount=1000000&amp;pubkey=3e458cc6...a5c8cf</code></pre>
+
+    <h3>3.2 Subsequent TXOs</h3>
+    <p>Each subsequent TXO includes the <code>commit</code> that tweaked to this pubkey:</p>
+    <pre><code>txo:tbtc4:45fbcbd7...81a9f7d:0?amount=999000&amp;pubkey=b5bc388c...5266c&amp;commit=cf97baba...83d17d</code></pre>
+
+    <h2>4. State Transitions</h2>
+
+    <h3>4.1 Transition Flow</h3>
+    <div class="ascii-box">                    ┌─────────────┐
+                    │ Git Commit  │
+                    │ (state Δ)   │
+                    └──────┬──────┘
+                           │ hash
+                           ▼
+┌──────────┐    tweak    ┌──────────┐
+│ P_old    │────────────→│ P_new    │
+│ (UTXO₁)  │             │ (UTXO₂)  │
+└──────────┘             └──────────┘
+     │                        │
+     │ spend                  │ new output
+     ▼                        ▼
+┌────────────────────────────────────┐
+│         Bitcoin Transaction        │
+└────────────────────────────────────┘</div>
+
+    <h3>4.2 Making a Transition</h3>
+    <ol>
+      <li>Create git commit with state changes</li>
+      <li>Compute new pubkey: <code>P_new = P_current + scalar(commit) × G</code></li>
+      <li>Spend current UTXO to new pubkey</li>
+      <li>Append new TXO URI to <code>txo.json</code></li>
+      <li>Push to git remote</li>
+    </ol>
+
+    <h2>5. Directory Structure</h2>
+    <p>Git-mark state is stored in the repository:</p>
+    <pre><code>.well-known/
+└── txo/
+    └── txo.json      # Array of TXO URIs</code></pre>
+
+    <h3>5.1 txo.json Format</h3>
+    <p>Simple JSON array of TXO URI strings:</p>
+    <pre><code>[
+  "txo:tbtc4:&lt;txid&gt;:0?amount=1000000&amp;pubkey=&lt;genesis_pubkey&gt;",
+  "txo:tbtc4:&lt;txid&gt;:0?amount=999000&amp;pubkey=&lt;pubkey&gt;&amp;commit=&lt;hash&gt;",
+  "txo:tbtc4:&lt;txid&gt;:0?amount=998000&amp;pubkey=&lt;pubkey&gt;&amp;commit=&lt;hash&gt;"
+]</code></pre>
+
+    <h2>6. Verification</h2>
+
+    <h3>6.1 Chain Validity</h3>
+    <p>A git-mark chain is valid if:</p>
+    <ol>
+      <li><strong>Genesis:</strong> First TXO has no commit, pubkey is valid point</li>
+      <li><strong>Continuity:</strong> Each subsequent <code>pubkey = prev_pubkey + scalar(commit) × G</code></li>
+      <li><strong>On-chain:</strong> Each UTXO exists (or existed) on Bitcoin</li>
+      <li><strong>Git validity:</strong> Commit hashes correspond to actual git commits</li>
+    </ol>
+
+    <h3>6.2 Verification Algorithm</h3>
+    <pre><code>function verify(txoUris):
+  txos = parse(txoUris)
+
+  // Genesis check
+  if txos[0].commit != null:
+    return { valid: false, error: "genesis has commit" }
+
+  // Try both Y parities (x-only loses parity)
+  for prefix in [0x02, 0x03]:
+    basePubkey = prefix || txos[0].pubkey
+
+    commits = []
+    valid = true
+    for i = 1 to txos.length - 1:
+      commits.push(txos[i].commit)
+      expected = deriveChainedPubkey(basePubkey, commits)
+      if xonly(expected) != txos[i].pubkey:
+        valid = false
+        break
+
+    if valid:
+      return { valid: true }
+
+  return { valid: false, error: "pubkey mismatch" }</code></pre>
+
+    <h2>7. Comparison with Monochrome</h2>
+    <table>
+      <tr><th>Aspect</th><th>Git-mark</th><th>Monochrome</th></tr>
+      <tr><td>Tweak source</td><td>Git commit hash</td><td>sha256(JCS(state))</td></tr>
+      <tr><td>State storage</td><td>Git tree objects</td><td>JSON state array</td></tr>
+      <tr><td>State format</td><td>Any git content</td><td>Structured JSON with ops</td></tr>
+      <tr><td>Linking</td><td>TXO URI in txo.json</td><td>State contains prev hash</td></tr>
+      <tr><td>Use case</td><td>Repository anchoring</td><td>Application state machines</td></tr>
+    </table>
+    <p>Git-mark leverages Git's existing content-addressed storage and commit graph. Monochrome defines its own state schema with explicit operations.</p>
+
+    <h2>8. Security Considerations</h2>
+
+    <h3>8.1 Inherited from Blocktrails</h3>
+    <ul>
+      <li>Hash preimage resistance → commit binding</li>
+      <li>Discrete log hardness → pubkey security</li>
+      <li>Bitcoin consensus → spend ordering</li>
+    </ul>
+
+    <h3>8.2 Git-mark Specific</h3>
+    <table>
+      <tr><th>Threat</th><th>Mitigation</th></tr>
+      <tr><td>Commit rewriting</td><td>Git's content-addressing; verifiers check commit exists</td></tr>
+      <tr><td>History divergence</td><td>TXO chain anchors specific commit sequence</td></tr>
+      <tr><td>UTXO availability</td><td>Bitcoin full node or SPV verification</td></tr>
+      <tr><td>txo.json tampering</td><td>Verify pubkey derivation matches recorded commits</td></tr>
+    </table>
+
+    <h3>8.3 Trust Model</h3>
+    <ul>
+      <li><strong>Bitcoin:</strong> UTXO existence and spend ordering</li>
+      <li><strong>Git:</strong> Commit immutability (content-addressed)</li>
+      <li><strong>Client:</strong> Must verify EC_ADD chain and commit existence</li>
+    </ul>
+
+    <h2>9. Implementation</h2>
+    <p>Reference implementation: <a href="https://github.com/blocktrails/git-mark">blocktrails/git-mark</a></p>
+    <pre><code>npm install git-seal
+
+git mark init
+git mark genesis --txid &lt;txid&gt; --vout 0 --amount 1000000
+git commit -m "state change"
+git mark advance --txid &lt;txid&gt; --vout 0 --amount 999000
+git mark verify</code></pre>
+
+    <h2>10. References</h2>
+    <ul>
+      <li><a href="../">Blocktrails Core Specification</a></li>
+      <li><a href="../profiles.html">Blocktrails Profiles</a></li>
+      <li><a href="https://petertodd.org/2016/commitments-and-single-use-seals">Single-Use Seals</a> — Peter Todd</li>
+      <li><a href="https://git-mark.com">Legacy gitmark</a></li>
+      <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki">BIP-340: Schnorr Signatures</a></li>
+      <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki">BIP-341: Taproot</a></li>
+    </ul>
+
+    <hr>
+    <p class="footer-tagline">Git-mark Profile v0.1 — Git commits anchored to Bitcoin.</p>
+
+  </main>
+</body>
+</html>

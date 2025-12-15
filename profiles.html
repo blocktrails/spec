@@ -187,6 +187,14 @@
     </ul>
     <p>Profiles do not modify Blocktrails Core verification.</p>
 
+    <h3>1.1 Available Profiles</h3>
+    <table>
+      <tr><th>Profile</th><th>Description</th><th>Tweak Source</th></tr>
+      <tr><td><a href="#monochrome">Monochrome</a></td><td>State machine framework with JCS serialization</td><td>sha256(JCS(state))</td></tr>
+      <tr><td><a href="#mrc20">MRC20</a></td><td>Issuer-controlled fungible tokens</td><td>sha256(JCS(state))</td></tr>
+      <tr><td><a href="profiles/gitmark.html">Git-mark</a></td><td>Git commits anchored to Bitcoin</td><td>sha256(commit_hash)</td></tr>
+    </table>
+
     <h2>2. Profile Model</h2>
 
     <h3>2.1 Identification</h3>
@@ -261,7 +269,7 @@ mono.mrc20.v0.1</code></pre>
     <p><strong>Normative constraint:</strong> Third parties MUST NOT define new operations under <code>urn:mono:op:</code> without governance by the Blocktrails/Monochrome specification maintainers. Namespace squatting creates ambiguity for verifiers.</p>
     <p>Profile authors MAY define additional operations under their own namespace (e.g., <code>urn:myorg:op:custom</code>).</p>
 
-    <h2>6. Monochrome Profile Framework (v0.1)</h2>
+    <h2 id="monochrome">6. Monochrome Profile Framework (v0.1)</h2>
 
     <h3>6.1 Purpose</h3>
     <p>Monochrome is a minimal profile framework for linear client-side state contracts. One active state at a time, no branching, no concealment, no concurrency.</p>
@@ -303,7 +311,7 @@ mono.mrc20.v0.1</code></pre>
     <h3>6.6 Authorization</h3>
     <p>The signer of the Blocktrails spend is the sole authority for state transitions. This is a <strong>single-writer model</strong>.</p>
 
-    <h2>7. MRC20: Fungible Token Profile (v0.1)</h2>
+    <h2 id="mrc20">7. MRC20: Fungible Token Profile (v0.1)</h2>
 
     <h3>7.1 Purpose</h3>
     <p>MRC20 is a minimal fungible token profile built on Monochrome.</p>
