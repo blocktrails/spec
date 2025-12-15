@@ -176,7 +176,7 @@
   <main>
     <a href="https://blocktrails.org" class="back">← blocktrails.org</a>
 
-    <h1>Blocktrails</h1>
+    <h1>Blocktrails <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.1)</span></h1>
     <p class="tagline">Nostr-native output-key commitment chaining on Bitcoin.</p>
 
     <h2>Definition</h2>
@@ -197,12 +197,22 @@
     <h2>Mechanism</h2>
     <p>For state <code>s</code>:</p>
     <ol>
-      <li>Compute <code>t = H(serialize(s))</code> interpreted as 256-bit big-endian integer, reduced mod <code>n</code></li>
+      <li>Compute <code>t = scalar(s)</code></li>
       <li>Private key: <code>d = d_base + t</code></li>
       <li>Public key: <code>P = d·G</code> (equivalently, <code>P = P_base + t·G</code>)</li>
     </ol>
     <p><code>H</code> is SHA-256 unless otherwise specified by the application.</p>
-    <p>If <code>t = 0</code>, the state MUST be rejected as invalid (probability ~2<sup>-256</sup>).</p>
+
+    <h3>Hash-to-scalar reduction</h3>
+    <pre><code>scalar(s):
+  h = sha256(serialize(s))           // 32 bytes
+  t = int(h, big-endian) mod n       // n = secp256k1 group order
+  if t == 0: reject state as invalid // probability ~2^-256
+  return t</code></pre>
+    <p>The tweak <code>t</code> MUST be in the range [1, n-1]. Implementations MUST reject states where <code>t = 0</code>. This is an application-layer rule — Bitcoin accepts the output regardless.</p>
+    <p>Note: Since <code>sha256</code> output is 256 bits and <code>n ≈ 2<sup>256</sup></code>, the modular reduction is nearly uniform. No rehashing or counter-based totality mechanism is required.</p>
+    <p>All subsequent uses of <code>scalar(state)</code> refer to this function.</p>
+    <p><code>serialize(s)</code> MUST be canonical and byte-stable: the same logical state MUST always produce identical bytes. Non-deterministic serialization breaks commitment verification.</p>
     <p>The base key <code>d_base</code> is immutable for a given trail. Rotation requires starting a new trail.</p>
     <p>Fees are paid from the current head output. When balance runs low, top-up (see Scope) adds funds.</p>
     <p>Boundary encoding for P2TR output:</p>
@@ -214,7 +224,7 @@
 
     <h2>Constraints</h2>
     <p>Blocktrails use P2TR key-path only and do not require tapscript, script trees, or script-path spends. The only mechanism used is public-key tweaking.</p>
-    <p>No domain separation is applied; the commitment binds exactly to the serialized state bytes. This is deliberate — simplicity is a goal. Applications requiring domain separation can include it in their <code>serialize()</code> function.</p>
+    <p>No domain separation is applied; the commitment binds exactly to the serialized state bytes. This is deliberate — simplicity is a goal, mirroring Bitcoin's sighash minimalism philosophy. Applications requiring domain separation can include it in their <code>serialize()</code> function.</p>
 
     <h2>Components</h2>
     <table>
@@ -241,14 +251,14 @@
     <h2>Operations</h2>
 
     <h3>Genesis</h3>
-    <pre><code>t₀ = H(serialize(state₀)) mod n
+    <pre><code>t₀ = scalar(state₀)
 d₀ = d_base + t₀
 P₀ = d₀·G
 output₀ = p2tr_xonly(P₀)</code></pre>
     <p>Create P2TR output with witness program <code>output₀</code>. Holder knows <code>d₀</code>.</p>
 
     <h3>Transition</h3>
-    <pre><code>tᵢ = H(serialize(stateᵢ)) mod n
+    <pre><code>tᵢ = scalar(stateᵢ)
 dᵢ = d_base + tᵢ
 Pᵢ = dᵢ·G
 outputᵢ = p2tr_xonly(Pᵢ)</code></pre>
@@ -259,7 +269,7 @@ outputᵢ = p2tr_xonly(Pᵢ)</code></pre>
   outpoint = genesis_outpoint
 
   for state in states:
-    t = H(serialize(state)) mod n
+    t = scalar(state)    // rejects if t = 0
     P = P_base + t·G
     if x(P) ≠ witness_program(outpoint): return false
     outpoint = spending_outpoint(outpoint)
@@ -267,7 +277,17 @@ outputᵢ = p2tr_xonly(Pᵢ)</code></pre>
   return is_unspent(outpoint)</code></pre>
     <p>Since <code>x(P) == x(-P)</code>, verification simply compares x-coordinates. No parity handling needed.</p>
     <p>To locate the spending transaction for a given outpoint, implementations MAY use any standard Bitcoin data source: full node with indexing, Electrum-style servers, or externally published transaction feeds.</p>
-    <p>Blocktrails are SPV-compatible. Verification requires only output keys and merkle inclusion proofs — no full node necessary.</p>
+
+    <h3>SPV compatibility and data dependencies</h3>
+    <p>Blocktrails are SPV-compatible. Verification requires:</p>
+    <ul>
+      <li><strong>Block headers</strong> — to validate proof-of-work chain</li>
+      <li><strong>Merkle inclusion proofs</strong> — for each transaction in the spend chain</li>
+      <li><strong>Genesis outpoint</strong> — application must know or discover the starting point</li>
+      <li><strong>Spending outpoint lookup</strong> — a method to find which transaction spent a given output (e.g., Electrum query, utreexo proof, or trusted indexer)</li>
+      <li><strong>Current UTXO status</strong> — to determine if the head output is unspent</li>
+    </ul>
+    <p>No full node is necessary, but UTXO status and spend-chain traversal require indexing or proof infrastructure. "SPV-compatible" does not mean "zero external dependencies."</p>
 
     <h2>Interface</h2>
     <p>Applications implement:</p>
@@ -312,7 +332,7 @@ validate(prev, next) → bool</code></pre>
     <h3>What Blocktrails do NOT protect against</h3>
     <table>
       <tr><th>Threat</th><th>Why</th><th>Mitigation</th></tr>
-      <tr><td>Key compromise</td><td>Holder of <code>d_base</code> controls all transitions</td><td>Secure key storage</td></tr>
+      <tr><td>Key compromise</td><td>Holder of <code>d_base</code> controls all transitions. Compromise means loss of all funds in the head output and full control over all future state transitions.</td><td>Secure key storage</td></tr>
       <tr><td>State withholding</td><td>State lives off-chain</td><td>Redundant state distribution</td></tr>
       <tr><td>Invalid state transitions</td><td>Validation is client-side</td><td>Verifiers must check <code>validate(prev, next)</code></td></tr>
       <tr><td>Censorship</td><td>Depends on Bitcoin transaction inclusion</td><td>Standard Bitcoin censorship resistance</td></tr>
@@ -346,6 +366,11 @@ validate(prev, next) → bool</code></pre>
     <h2>Reference Implementation</h2>
     <p><a href="https://github.com/blocktrails/blocktrails">blocktrails</a> — JavaScript/Node.js implementation with full test suite.</p>
     <pre><code>npm install blocktrails</code></pre>
+
+    <h2>Related Specifications</h2>
+    <ul>
+      <li><a href="./profiles.md">Blocktrails Profiles</a> — Application-layer profiles defining state formats and validation rules (Monochrome, MRC20)</li>
+    </ul>
 
     <h2>References</h2>
     <ul>
