@@ -207,6 +207,14 @@ This primitive does not provide:
 | Invalid transition accepted | Verifiers reject; chain forks semantically | Social consensus on valid branch |
 | Bitcoin reorg | Recent transitions may revert | Wait for confirmations |
 
+## Reference Implementation
+
+[blocktrails-js](https://github.com/blocktrails/blocktrails-js) — JavaScript/Node.js implementation with full test suite.
+
+```bash
+npm install blocktrails
+```
+
 ## References
 
 - [BIP-340: Schnorr Signatures](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki)
