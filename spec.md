@@ -2,6 +2,10 @@
 
 Nostr-native output-key commitment chaining on Bitcoin.
 
+## Abstract
+
+This specification defines Blocktrails, a Nostr-native method for binding off-chain state to Bitcoin's UTXO graph. State is committed by tweaking a base public key; advancing state requires spending to a newly tweaked key. The result is a linear, Bitcoin-ordered sequence of commitments inheriting Bitcoin's security guarantees. Full verification requires only block headers and minimal proof data — no full node needed.
+
 ## Definition
 
 A **Blocktrail** is a sequence of P2TR key-path outputs where each output key is derived by cumulatively tweaking the base key. Each state transition adds a new tweak, and spending the output advances the trail to the next committed state.
