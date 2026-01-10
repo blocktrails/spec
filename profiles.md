@@ -1,4 +1,4 @@
-# Blocktrails Profiles Specification (v0.1)
+# Blocktrails Profiles Specification (v0.2)
 
 ---
 
@@ -604,4 +604,4 @@ Monochrome occupies similar design space to RGB with different trade-offs:
 
 ---
 
-*Blocktrails Profiles v0.1 — Minimal client-validated state on Bitcoin.*
+*Blocktrails Profiles v0.2 — Minimal client-validated state on Bitcoin.*
