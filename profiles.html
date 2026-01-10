@@ -232,11 +232,14 @@ mono.mrc20.v0.1</code></pre>
     </ul>
 
     <h3>3.2 State Hash and Scalar</h3>
-    <p>Profiles define <code>serialize(state) := jcs(state)</code>. The Blocktrails Core <code>scalar()</code> function is then:</p>
-    <pre><code>scalar(state) := int(sha256(jcs(state)), big-endian) mod n</code></pre>
+    <p>Profiles define <code>serialize(state) := jcs(state)</code>. The Blocktrails Core <code>scalar(P, state)</code> function (see <a href="./index.html">parent spec</a>) uses BIP-341 TapTweak derivation:</p>
+    <pre><code>scalar(P, state):
+  h = sha256(jcs(state))                          // 32 bytes
+  t = tagged_hash("TapTweak", x_only(P) || h)     // BIP-341
+  return int(t, big-endian) mod n</code></pre>
     <p>Serialization MUST be canonical and byte-stable: the same logical state MUST always produce identical bytes. JCS provides this guarantee.</p>
-    <p>The resulting tweak MUST be in the range [1, n-1]. If <code>scalar(state) = 0</code>, the state MUST be rejected (probability ~2<sup>-256</sup>).</p>
-    <p><strong>Note on collisions:</strong> A hash collision is catastrophic by construction — it breaks commitment binding, not merely on-chain distinguishability. Two different states producing the same <code>scalar()</code> value would share an output key, creating semantic ambiguity: verifiers cannot determine which state was intended.</p>
+    <p>The resulting tweak MUST be in the range [1, n-1]. If <code>scalar(P, state) = 0</code>, the state MUST be rejected (probability ~2<sup>-256</sup>).</p>
+    <p><strong>Note on collisions:</strong> A hash collision is catastrophic by construction — it breaks commitment binding, not merely on-chain distinguishability. Two different states producing the same scalar value would share an output key, creating semantic ambiguity: verifiers cannot determine which state was intended.</p>
 
     <h2>4. Common Encodings</h2>
 

@@ -70,17 +70,20 @@ Profiles use **JCS (JSON Canonicalization Scheme, RFC 8785)** for deterministic 
 
 ### 3.2 State Hash and Scalar
 
-Profiles define `serialize(state) := jcs(state)`. The Blocktrails Core `scalar()` function (see parent spec) is then:
+Profiles define `serialize(state) := jcs(state)`. The Blocktrails Core `scalar(P, state)` function (see parent spec) uses BIP-341 TapTweak derivation:
 
 ```
-scalar(state) := int(sha256(jcs(state)), big-endian) mod n
+scalar(P, state):
+  h = sha256(jcs(state))                          // 32 bytes
+  t = tagged_hash("TapTweak", x_only(P) || h)     // BIP-341
+  return int(t, big-endian) mod n
 ```
 
 Serialization MUST be canonical and byte-stable: the same logical state MUST always produce identical bytes. JCS provides this guarantee. Non-deterministic serialization breaks commitment verification.
 
-The resulting tweak MUST be in the range [1, n-1]. If `scalar(state) = 0`, the state MUST be rejected (probability ~2^-256).
+The resulting tweak MUST be in the range [1, n-1]. If `scalar(P, state) = 0`, the state MUST be rejected (probability ~2^-256).
 
-**Note on collisions:** A hash collision is catastrophic by construction — it breaks commitment binding, not merely on-chain distinguishability. Two different states producing the same `scalar()` value would share an output key, creating semantic ambiguity: verifiers cannot determine which state was intended. The security of client-side validation depends entirely on collision resistance.
+**Note on collisions:** A hash collision is catastrophic by construction — it breaks commitment binding, not merely on-chain distinguishability. Two different states producing the same scalar value would share an output key, creating semantic ambiguity: verifiers cannot determine which state was intended. The security of client-side validation depends entirely on collision resistance.
 
 ### 3.3 Example
 
