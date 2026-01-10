@@ -171,40 +171,49 @@
   <main>
     <a href="../profiles.html" class="back">← Blocktrails Profiles</a>
 
-    <h1>Git-mark Profile <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.1)</span></h1>
+    <h1>Git-mark Profile <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.2)</span></h1>
     <p class="tagline">Git commits anchored to Bitcoin via Blocktrails output-key commitments.</p>
 
     <h2>Abstract</h2>
-    <p>Git-mark binds Bitcoin UTXOs to Git commits using elliptic curve tweaking. Each commit hash becomes a scalar tweak that derives a new pubkey, creating a cryptographic chain linking repository history to Bitcoin.</p>
+    <p>Git-mark binds Bitcoin UTXOs to Git commits using BIP-341 TapTweak derivation. Each commit hash is combined with the current pubkey to derive a new pubkey, creating a cryptographic chain linking repository history to Bitcoin.</p>
 
     <h2>1. Introduction</h2>
     <p>Git-mark creates a two-way binding between Git and Bitcoin:</p>
     <ul>
-      <li><strong>Git → Bitcoin:</strong> Commit hash tweaks the pubkey, recorded on-chain</li>
+      <li><strong>Git → Bitcoin:</strong> Commit hash tweaks the pubkey via BIP-341 TapTweak, recorded on-chain</li>
       <li><strong>Bitcoin → Git:</strong> TXO URI in repository points to the UTXO</li>
     </ul>
-    <p>Unlike Monochrome profiles which use JCS-serialized state as the tweak source, git-mark uses Git commit hashes directly.</p>
+    <p>Git-mark uses Git commit hashes as the state data, combined with BIP-341 tagged hashes for pubkey-dependent derivation.</p>
 
     <h2>2. Cryptographic Model</h2>
 
     <h3>2.1 Chained Key Derivation</h3>
-    <p>Git-mark follows the Blocktrails chained derivation model:</p>
-    <div class="ascii-box">Genesis:   P₀ = d₀ × G                        (base pubkey)
-Commit 1:  P₁ = P₀ + scalar(commit₁) × G       (tweaked by first commit)
-Commit 2:  P₂ = P₁ + scalar(commit₂) × G       (tweaked by second commit)
+    <p>Git-mark follows the Blocktrails v0.2 chained derivation model with BIP-341 pubkey-dependent tweaks:</p>
+    <div class="ascii-box">Genesis:   P₀ = P_base + scalar(P_base, commit₀) × G    (tweaked by genesis commit)
+Commit 1:  P₁ = P₀ + scalar(P₀, commit₁) × G            (tweaked by first commit)
+Commit 2:  P₂ = P₁ + scalar(P₁, commit₂) × G            (tweaked by second commit)
 ...
-Commit n:  Pₙ = Pₙ₋₁ + scalar(commitₙ) × G</div>
+Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
+    <p>Note: Each tweak depends on the <em>current</em> pubkey, not just the commit hash. The same commit at different positions produces different tweaks.</p>
 
-    <h3>2.2 Scalar Function</h3>
-    <p>For git-mark, the scalar is the git commit hash interpreted as a big-endian integer:</p>
-    <pre><code>scalar(commit) := int(commit_hash, big-endian) mod n</code></pre>
-    <p>Where <code>commit_hash</code> is the 20-byte (40 hex character) git commit hash, and <code>n</code> is the secp256k1 curve order.</p>
-    <p>Since git uses SHA-1, the commit hash is already a cryptographic hash. No additional hashing is needed.</p>
-    <p>If <code>scalar(commit) = 0</code>, the commit MUST be rejected (probability ~2<sup>-160</sup>).</p>
+    <h3>2.2 Scalar Function (BIP-341 TapTweak)</h3>
+    <p>Git-mark uses the BIP-341 TapTweak derivation with the git commit hash as data:</p>
+    <pre><code>scalar(P, commit):
+  t = tagged_hash("TapTweak", x_only(P) || commit_hash)
+  return int(t, big-endian) mod n</code></pre>
+    <p>Where:</p>
+    <ul>
+      <li><code>tagged_hash(tag, msg) = sha256(sha256(tag) || sha256(tag) || msg)</code></li>
+      <li><code>x_only(P)</code> extracts the 32-byte x-coordinate</li>
+      <li><code>commit_hash</code> is the 20-byte git commit hash (padded or used as-is)</li>
+      <li><code>n</code> is the secp256k1 curve order</li>
+    </ul>
+    <p>If <code>scalar(P, commit) = 0</code>, the commit MUST be rejected (probability ~2<sup>-256</sup>).</p>
 
     <h3>2.3 Private Key Derivation</h3>
-    <p>The spending key for any state:</p>
-    <pre><code>d_n = d₀ + scalar(commit₁) + scalar(commit₂) + ... + scalar(commitₙ)  (mod n)</code></pre>
+    <p>The spending key for any state, where each tweak <code>tᵢ = scalar(Pᵢ₋₁, commitᵢ)</code>:</p>
+    <pre><code>d_n = d₀ + t₀ + t₁ + ... + tₙ  (mod n)</code></pre>
+    <p>where <code>t₀ = scalar(P_base, commit₀)</code>, <code>t₁ = scalar(P₀, commit₁)</code>, etc.</p>
 
     <h2>3. TXO URI Format</h2>
     <p>Git-mark uses TXO URIs to record the on-chain state:</p>
@@ -251,7 +260,7 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(commitₙ) × G</div>
     <h3>4.2 Making a Transition</h3>
     <ol>
       <li>Create git commit with state changes</li>
-      <li>Compute new pubkey: <code>P_new = P_current + scalar(commit) × G</code></li>
+      <li>Compute new pubkey: <code>P_new = P_current + scalar(P_current, commit) × G</code></li>
       <li>Spend current UTXO to new pubkey</li>
       <li>Append new TXO URI to <code>txo.json</code></li>
       <li>Push to git remote</li>
@@ -276,8 +285,8 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(commitₙ) × G</div>
     <h3>6.1 Chain Validity</h3>
     <p>A git-mark chain is valid if:</p>
     <ol>
-      <li><strong>Genesis:</strong> First TXO has no commit, pubkey is valid point</li>
-      <li><strong>Continuity:</strong> Each subsequent <code>pubkey = prev_pubkey + scalar(commit) × G</code></li>
+      <li><strong>Genesis:</strong> First TXO pubkey = <code>P_base + scalar(P_base, genesis_commit) × G</code></li>
+      <li><strong>Continuity:</strong> Each subsequent <code>pubkey = prev_pubkey + scalar(prev_pubkey, commit) × G</code></li>
       <li><strong>On-chain:</strong> Each UTXO exists (or existed) on Bitcoin</li>
       <li><strong>Git validity:</strong> Commit hashes correspond to actual git commits</li>
     </ol>
@@ -286,20 +295,22 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(commitₙ) × G</div>
     <pre><code>function verify(txoUris):
   txos = parse(txoUris)
 
-  // Genesis check
+  // Genesis check - first TXO is base pubkey (no commit)
   if txos[0].commit != null:
     return { valid: false, error: "genesis has commit" }
 
   // Try both Y parities (x-only loses parity)
   for prefix in [0x02, 0x03]:
     basePubkey = prefix || txos[0].pubkey
+    P = basePubkey
 
-    commits = []
     valid = true
     for i = 1 to txos.length - 1:
-      commits.push(txos[i].commit)
-      expected = deriveChainedPubkey(basePubkey, commits)
-      if xonly(expected) != txos[i].pubkey:
+      commit = txos[i].commit
+      // BIP-341 TapTweak: tweak depends on current pubkey
+      t = scalar(P, commit)
+      P = P + t × G
+      if xonly(P) != txos[i].pubkey:
         valid = false
         break
 
@@ -321,13 +332,13 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(commitₙ) × G</div>
     <h2>7. Comparison with Monochrome</h2>
     <table>
       <tr><th>Aspect</th><th>Git-mark</th><th>Monochrome</th></tr>
-      <tr><td>Tweak source</td><td>Git commit hash</td><td>sha256(JCS(state))</td></tr>
+      <tr><td>Tweak derivation</td><td>BIP-341 TapTweak with commit hash</td><td>BIP-341 TapTweak with sha256(JCS(state))</td></tr>
       <tr><td>State storage</td><td>Git tree objects</td><td>JSON state array</td></tr>
       <tr><td>State format</td><td>Any git content</td><td>Structured JSON with ops</td></tr>
       <tr><td>Linking</td><td>TXO URI in txo.json</td><td>State contains prev hash</td></tr>
       <tr><td>Use case</td><td>Repository anchoring</td><td>Application state machines</td></tr>
     </table>
-    <p>Git-mark leverages Git's existing content-addressed storage and commit graph. Monochrome defines its own state schema with explicit operations.</p>
+    <p>Both profiles use BIP-341 TapTweak for pubkey-dependent derivation. Git-mark leverages Git's existing content-addressed storage and commit graph. Monochrome defines its own state schema with explicit operations.</p>
 
     <h2>8. Security Considerations</h2>
 
@@ -374,7 +385,7 @@ git mark verify</code></pre>
     </ul>
 
     <hr>
-    <p class="footer-tagline">Git-mark Profile v0.1 — Git commits anchored to Bitcoin.</p>
+    <p class="footer-tagline">Git-mark Profile v0.2 — Git commits anchored to Bitcoin via BIP-341 TapTweak.</p>
 
   </main>
 </body>
