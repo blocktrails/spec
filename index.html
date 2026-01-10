@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Blocktrails Specification</title>
-  <meta name="description" content="Nostr-native output-key commitment chaining on Bitcoin — Specification">
+  <meta name="description" content="Trust through time — Nostr-native state anchoring on Bitcoin">
   <style>
     :root {
       --bg: #0d1117;
@@ -176,8 +176,8 @@
   <main>
     <a href="https://blocktrails.org" class="back">← blocktrails.org</a>
 
-    <h1>Blocktrails <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.1)</span></h1>
-    <p class="tagline">Nostr-native output-key commitment chaining on Bitcoin.</p>
+    <h1>Blocktrails <span style="color: var(--muted); font-size: 0.5em; font-weight: 400;">(v0.2)</span></h1>
+    <p class="tagline">Trust through time — Nostr-native state anchoring on Bitcoin.</p>
 
     <h2>Abstract</h2>
     <p>This specification defines Blocktrails, a Nostr-native method for binding off-chain state to Bitcoin's UTXO graph. State is committed by tweaking a base public key; advancing state requires spending to a newly tweaked key. The result is a linear, Bitcoin-ordered sequence of commitments inheriting Bitcoin's security guarantees. Full verification requires only block headers and minimal proof data — no full node needed.</p>
@@ -202,33 +202,43 @@
 
     <p>For genesis state <code>s₀</code>:</p>
     <ol>
-      <li>Compute <code>t₀ = scalar(s₀)</code></li>
+      <li>Compute <code>t₀ = scalar(P_base, s₀)</code></li>
       <li>Private key: <code>d₀ = d_base + t₀</code></li>
       <li>Public key: <code>P₀ = P_base + t₀·G</code></li>
     </ol>
 
     <p>For transition to state <code>sᵢ</code>:</p>
     <ol>
-      <li>Compute <code>tᵢ = scalar(sᵢ)</code></li>
+      <li>Compute <code>tᵢ = scalar(Pᵢ₋₁, sᵢ)</code> — tweak depends on current pubkey</li>
       <li>Private key: <code>dᵢ = dᵢ₋₁ + tᵢ</code></li>
       <li>Public key: <code>Pᵢ = Pᵢ₋₁ + tᵢ·G</code></li>
     </ol>
 
-    <p>Equivalently, the cumulative tweak is the sum of all state scalars:</p>
-    <pre><code>dₙ = d_base + t₀ + t₁ + ... + tₙ
-Pₙ = P_base + (t₀ + t₁ + ... + tₙ)·G</code></pre>
+    <p>Note: Unlike simple additive tweaking, BIP-341 tweaks are <strong>pubkey-dependent</strong>. The same state produces different tweaks at different positions in the chain.</p>
 
-    <p><code>H</code> is SHA-256 unless otherwise specified by the application.</p>
+    <h3>BIP-341 Tagged Hash</h3>
+    <pre><code>tagged_hash(tag, msg):
+  tag_hash = sha256(tag)
+  return sha256(tag_hash || tag_hash || msg)</code></pre>
 
-    <h3>Hash-to-scalar reduction</h3>
-    <pre><code>scalar(s):
-  h = sha256(serialize(s))           // 32 bytes
-  t = int(h, big-endian) mod n       // n = secp256k1 group order
-  if t == 0: reject state as invalid // probability ~2^-256
+    <h3>Scalar function (BIP-341 TapTweak)</h3>
+    <pre><code>scalar(P, s):
+  h = sha256(serialize(s))                        // 32 bytes
+  t = tagged_hash("TapTweak", x_only(P) || h)     // BIP-341
+  t = int(t, big-endian) mod n                    // n = secp256k1 group order
+  if t == 0: reject state as invalid              // probability ~2^-256
   return t</code></pre>
+    <p>Where <code>x_only(P)</code> extracts the 32-byte x-coordinate from a compressed public key.</p>
     <p>The tweak <code>t</code> MUST be in the range [1, n-1]. Implementations MUST reject states where <code>t = 0</code>. This is an application-layer rule — Bitcoin accepts the output regardless.</p>
-    <p>Note: Since <code>sha256</code> output is 256 bits and <code>n ≈ 2<sup>256</sup></code>, the modular reduction is nearly uniform. No rehashing or counter-based totality mechanism is required.</p>
-    <p>All subsequent uses of <code>scalar(state)</code> refer to this function.</p>
+
+    <h3>Benefits of BIP-341 derivation</h3>
+    <ul>
+      <li><strong>Pubkey binding</strong>: Same state at different chain positions produces different tweaks</li>
+      <li><strong>Domain separation</strong>: Tagged hash prevents collision with other protocols</li>
+      <li><strong>Standards alignment</strong>: Compatible with BIP-341 Taproot</li>
+    </ul>
+
+    <p>All subsequent uses of <code>scalar(P, state)</code> refer to this function.</p>
     <p><code>serialize(s)</code> MUST be canonical and byte-stable: the same logical state MUST always produce identical bytes. Non-deterministic serialization breaks commitment verification.</p>
     <p>The base key <code>d_base</code> is immutable for a given trail. Rotation requires starting a new trail.</p>
     <p>Fees are paid from the current head output. When balance runs low, top-up (see Scope) adds funds.</p>
@@ -241,7 +251,7 @@ Pₙ = P_base + (t₀ + t₁ + ... + tₙ)·G</code></pre>
 
     <h2>Constraints</h2>
     <p>Blocktrails use P2TR key-path only and do not require tapscript, script trees, or script-path spends. The only mechanism used is public-key tweaking.</p>
-    <p>No domain separation is applied; the commitment binds exactly to the serialized state bytes. This is deliberate — simplicity is a goal, mirroring Bitcoin's sighash minimalism philosophy. Applications requiring domain separation can include it in their <code>serialize()</code> function.</p>
+    <p>Domain separation is provided by BIP-341 tagged hashes. The "TapTweak" tag ensures commitments cannot collide with other protocols using SHA-256.</p>
 
     <h2>Components</h2>
     <table>
@@ -268,20 +278,21 @@ Pₙ = P_base + (t₀ + t₁ + ... + tₙ)·G</code></pre>
     <h2>Operations</h2>
 
     <h3>Genesis</h3>
-    <pre><code>t₀ = scalar(state₀)
+    <pre><code>t₀ = scalar(P_base, s₀)
 d₀ = d_base + t₀
-P₀ = d₀·G
+P₀ = P_base + t₀·G
 output₀ = p2tr_xonly(P₀)</code></pre>
     <p>Create P2TR output with witness program <code>output₀</code>. Holder knows <code>d₀</code>.</p>
 
     <h3>Transition</h3>
-    <pre><code>tᵢ = scalar(stateᵢ)
+    <pre><code>tᵢ = scalar(Pᵢ₋₁, sᵢ)
 dᵢ = dᵢ₋₁ + tᵢ
 Pᵢ = Pᵢ₋₁ + tᵢ·G
 outputᵢ = p2tr_xonly(Pᵢ)</code></pre>
     <p>Sign with <code>dᵢ₋₁</code> to spend previous output. Create new output with witness program <code>outputᵢ</code>.</p>
-    <p>Note: The spending key accumulates all previous tweaks. At state <code>n</code>:</p>
+    <p>Note: The spending key accumulates all previous tweaks. At state <code>n</code>, each tweak <code>tᵢ</code> was computed from <code>Pᵢ₋₁</code>:</p>
     <pre><code>dₙ = d_base + t₀ + t₁ + ... + tₙ</code></pre>
+    <p>where <code>t₀ = scalar(P_base, s₀)</code>, <code>t₁ = scalar(P₀, s₁)</code>, etc.</p>
 
     <h3>Verify</h3>
     <pre><code>verify(P_base, genesis_outpoint, states[]) → bool:
@@ -289,13 +300,13 @@ outputᵢ = p2tr_xonly(Pᵢ)</code></pre>
   P = P_base
 
   for state in states:
-    t = scalar(state)    // rejects if t = 0
-    P = P + t·G          // chain the tweak
+    t = scalar(P, state)  // tweak depends on current P; rejects if t = 0
+    P = P + t·G           // chain the tweak
     if x(P) ≠ witness_program(outpoint): return false
     outpoint = spending_outpoint(outpoint)
 
   return is_unspent(outpoint)</code></pre>
-    <p>Verification chains the tweaks: each state adds to the running public key. Since <code>x(P) == x(-P)</code>, comparison uses x-coordinates only. No parity handling needed.</p>
+    <p>Verification chains the tweaks: each state adds to the running public key using pubkey-dependent BIP-341 tweaks. Since <code>x(P) == x(-P)</code>, comparison uses x-coordinates only. No parity handling needed.</p>
     <p>To locate the spending transaction for a given outpoint, implementations MAY use any standard Bitcoin data source: full node with indexing, Electrum-style servers, or externally published transaction feeds.</p>
 
     <h3>SPV compatibility and data dependencies</h3>
