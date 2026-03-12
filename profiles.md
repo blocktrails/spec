@@ -563,9 +563,9 @@ This specification does not provide:
 
 - Confidentiality
 - Zero-knowledge proofs
-- DAG state graphs
+- DAG state graphs (see [DAG Extension](./dag.md) for opt-in multi-party DAG support)
 - Script-enforced logic
-- Multi-writer concurrency
+- Multi-writer concurrency (see [DAG Extension](./dag.md) for multi-party trails)
 - Self-sovereign account authorization (see 7.11)
 - Allowances/approvals
 

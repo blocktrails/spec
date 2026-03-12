@@ -278,6 +278,7 @@ npm install blocktrails
 ## Related Specifications
 
 - [Blocktrails Profiles](./profiles.md) — Application-layer profiles defining state formats and validation rules (Monochrome, MRC20)
+- [DAG Extension](./dag.md) — Multi-party state graphs (opt-in, backward-compatible)
 
 ## References
 
