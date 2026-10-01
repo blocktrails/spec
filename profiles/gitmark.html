@@ -188,7 +188,7 @@
     <h2>2. Cryptographic Model</h2>
 
     <h3>2.1 Chained Key Derivation</h3>
-    <p>Git-mark follows the Blocktrails v0.2 chained derivation model with BIP-341 pubkey-dependent tweaks:</p>
+    <p>Git-mark is Blocktrails Core with the state being the commit hash as text: it follows the chained derivation model with pubkey-dependent tweaks, on the full point at every step (never its even-y lift). Every TXO, the first one included, carries the commit it was tweaked by; the base key itself is never an output.</p>
     <div class="ascii-box">Genesis:   P₀ = P_base + scalar(P_base, commit₀) × G    (tweaked by genesis commit)
 Commit 1:  P₁ = P₀ + scalar(P₀, commit₁) × G            (tweaked by first commit)
 Commit 2:  P₂ = P₁ + scalar(P₁, commit₂) × G            (tweaked by second commit)
@@ -196,16 +196,19 @@ Commit 2:  P₂ = P₁ + scalar(P₁, commit₂) × G            (tweaked by sec
 Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
     <p>Note: Each tweak depends on the <em>current</em> pubkey, not just the commit hash. The same commit at different positions produces different tweaks.</p>
 
-    <h3>2.2 Scalar Function (BIP-341 TapTweak)</h3>
-    <p>Git-mark uses the BIP-341 TapTweak derivation with the git commit hash as data:</p>
+    <h3>2.2 Scalar Function (Core <code>scalar</code>, state = the commit as text)</h3>
+    <p>Git-mark uses the Core scalar function with the state serialized as the commit hash's 40 lowercase hex characters, as UTF-8 text:</p>
     <pre><code>scalar(P, commit):
-  t = tagged_hash("TapTweak", x_only(P) || commit_hash)
+  h = sha256(utf8(commit))                        // the 40 hex characters as bytes, not the 20 raw bytes
+  t = tagged_hash("TapTweak", x_only(P) || h)
   return int(t, big-endian) mod n</code></pre>
+    <p class="note">This is the rule the live trails follow (checked against the chain: every sampled mark of a 68-mark trail of 1 October 2026, through 35 odd-y intermediate points). An earlier draft of this page hashed the 20 raw commit bytes and had no commit at genesis; no trail was made that way.</p>
     <p>Where:</p>
     <ul>
       <li><code>tagged_hash(tag, msg) = sha256(sha256(tag) || sha256(tag) || msg)</code></li>
       <li><code>x_only(P)</code> extracts the 32-byte x-coordinate</li>
-      <li><code>commit_hash</code> is the 20-byte git commit hash (padded or used as-is)</li>
+      <li><code>commit</code> is the git commit hash as 40 lowercase hex characters; <code>h</code> is the SHA-256 of those 40 bytes of text</li>
+      <li><code>P</code> is the current full point, whatever its parity; the tweak is added to it as it is</li>
       <li><code>n</code> is the secp256k1 curve order</li>
     </ul>
     <p>If <code>scalar(P, commit) = 0</code>, the commit MUST be rejected (probability ~2<sup>-256</sup>).</p>
@@ -217,7 +220,7 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
 
     <h2>3. TXO URI Format</h2>
     <p>Git-mark uses TXO URIs to record the on-chain state:</p>
-    <pre><code>txo:&lt;network&gt;:&lt;txid&gt;:&lt;vout&gt;?amount=&lt;sats&gt;&amp;pubkey=&lt;hex&gt;[&amp;commit=&lt;git_hash&gt;]</code></pre>
+    <pre><code>txo:&lt;network&gt;:&lt;txid&gt;:&lt;vout&gt;?amount=&lt;sats&gt;&amp;commit=&lt;git_hash&gt;[&amp;pubkey=&lt;hex&gt;]</code></pre>
 
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
@@ -225,13 +228,13 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
       <tr><td>txid</td><td>hex64</td><td>Transaction ID (64 hex characters)</td></tr>
       <tr><td>vout</td><td>integer</td><td>Output index</td></tr>
       <tr><td>amount</td><td>integer</td><td>Value in satoshis</td></tr>
-      <tr><td>pubkey</td><td>hex64</td><td>X-only pubkey (64 hex characters)</td></tr>
-      <tr><td>commit</td><td>hex40</td><td>Git commit hash (absent for genesis)</td></tr>
+      <tr><td>pubkey</td><td>hex64</td><td>X-only pubkey (64 hex characters), optional: a verifier recomputes it from the base key and the commits</td></tr>
+      <tr><td>commit</td><td>hex40</td><td>Git commit hash: every TXO carries one, the genesis TXO too</td></tr>
     </table>
 
     <h3>3.1 Genesis TXO</h3>
-    <p>The genesis TXO has no <code>commit</code> parameter. Its pubkey is the base pubkey <code>P₀</code>:</p>
-    <pre><code>txo:tbtc4:34cea31b...e854be0e:0?amount=1000000&amp;pubkey=3e458cc6...a5c8cf</code></pre>
+    <p>The genesis TXO carries the first commit; its pubkey is the base key tweaked by it, <code>x(P_base + scalar(P_base, commit₀) × G)</code>. The base key itself is never an output: it is published with the trail (<code>pubkeyBase</code> in <code>blocktrails.json</code>) as a full compressed point, <code>02</code>/<code>03</code> + x, so a verifier has nothing to guess.</p>
+    <pre><code>txo:tbtc4:51d87101...420eeacf:0?amount=999700&amp;commit=9adc596c...20f16d0b</code></pre>
 
     <h3>3.2 Subsequent TXOs</h3>
     <p>Each subsequent TXO includes the <code>commit</code> that tweaked to this pubkey:</p>
@@ -270,15 +273,29 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
     <p>Git-mark state is stored in the repository:</p>
     <pre><code>.well-known/
 └── txo/
-    └── txo.json      # Array of TXO URIs</code></pre>
+    └── txo.json      # Array of TXO URIs
+blocktrails.json      # the trail: the base key, the states, the TXO URIs (what a verifier reads)</code></pre>
 
     <h3>5.1 txo.json Format</h3>
     <p>Simple JSON array of TXO URI strings:</p>
     <pre><code>[
-  "txo:tbtc4:&lt;txid&gt;:0?amount=1000000&amp;pubkey=&lt;genesis_pubkey&gt;",
-  "txo:tbtc4:&lt;txid&gt;:0?amount=999000&amp;pubkey=&lt;pubkey&gt;&amp;commit=&lt;hash&gt;",
-  "txo:tbtc4:&lt;txid&gt;:0?amount=998000&amp;pubkey=&lt;pubkey&gt;&amp;commit=&lt;hash&gt;"
+  "txo:tbtc4:&lt;txid&gt;:0?amount=1000000&amp;commit=&lt;genesis_commit&gt;",
+  "txo:tbtc4:&lt;txid&gt;:0?amount=999000&amp;commit=&lt;hash&gt;",
+  "txo:tbtc4:&lt;txid&gt;:0?amount=998000&amp;commit=&lt;hash&gt;"
 ]</code></pre>
+
+    <h3>5.2 blocktrails.json</h3>
+    <p>The trail as a verifier reads it, served beside the repository (the same shape the live trails use):</p>
+    <pre><code>{
+  "@type": "Blocktrail",
+  "version": "0.0.3",
+  "profile": "gitmark",
+  "pubkeyBase": "02…",          // the base key as a full compressed point (02/03 + x): nothing to guess
+  "chain": "tbtc4",
+  "states": ["&lt;genesis_commit&gt;", "&lt;hash&gt;", "&lt;hash&gt;"],   // one per TXO, in order
+  "txo": ["txo:tbtc4:…", "txo:tbtc4:…", "txo:tbtc4:…"]
+}</code></pre>
+    <p><code>pubkeyBase</code> is where a verifier obtains the base key; <code>txo.json</code> alone does not carry it.</p>
 
     <h2>6. Verification</h2>
 
@@ -292,32 +309,22 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
     </ol>
 
     <h3>6.2 Verification Algorithm</h3>
-    <pre><code>function verify(txoUris):
+    <pre><code>function verify(pubkeyBase, txoUris):
   txos = parse(txoUris)
 
-  // Genesis check - first TXO is base pubkey (no commit)
-  if txos[0].commit != null:
-    return { valid: false, error: "genesis has commit" }
+  // the base key is published with the trail as a full point: nothing to guess
+  P = pubkeyBase                       // 02/03 || x
 
-  // Try both Y parities (x-only loses parity)
-  for prefix in [0x02, 0x03]:
-    basePubkey = prefix || txos[0].pubkey
-    P = basePubkey
+  // every link, not the head alone: the head commits only to the sum of the tweaks
+  for i = 0 to txos.length - 1:
+    commit = txos[i].commit
+    if commit == null: return { valid: false, error: "a TXO without a commit" }
+    t = scalar(P, commit)              // depends on the current point, kept as it is
+    P = P + t × G
+    if xonly(P) != witness_program(txos[i]):   // the output on-chain (or the pubkey the URI records)
+      return { valid: false, error: "pubkey mismatch at " + i }
 
-    valid = true
-    for i = 1 to txos.length - 1:
-      commit = txos[i].commit
-      // BIP-341 TapTweak: tweak depends on current pubkey
-      t = scalar(P, commit)
-      P = P + t × G
-      if xonly(P) != txos[i].pubkey:
-        valid = false
-        break
-
-    if valid:
-      return { valid: true }
-
-  return { valid: false, error: "pubkey mismatch" }</code></pre>
+  return { valid: true }</code></pre>
 
     <h3>6.3 Commit Selection and Ordering</h3>
     <p>Commits anchored to the TXO chain need not be consecutive in git history. Any commit may be selected for marking. However:</p>

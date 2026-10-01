@@ -21,7 +21,9 @@ This preserves:
 - **Nostr compatibility**: same key model
 - **Composability**: standard secp256k1 tooling
 
-Parity normalization is an output encoding concern, not a state or semantic concern.
+Parity normalization is an output encoding concern, not a state or semantic concern. The tweak is added to the point as it is, never to its even-y lift: that keeps `d + t ↔ P + t·G` exact at every step, whatever the parity of any point along the chain. (BIP 341 lifts before every tweak, which makes a chain's arithmetic depend on each step's parity; Blocktrails does not, and so is not BIP 341's derivation — see *Benefits* below.)
+
+A trail publishes its base key as a full compressed point (`02`/`03` + x, 33 bytes), so a verifier has nothing to guess. A base given as a bare x-only key (an npub, a did:nostr identifier) denotes the even-y point, `02` + x, and its holder normalizes the secret once (`n − d` if the point is odd-y) so that it is exactly theirs; after that nothing is lifted again. This rule is stated and tested once, with the official BIP 340, 341 and 86 vectors, in [sidestr/spec `siding/lib/keys.mjs`](https://github.com/sidestr/spec/blob/gh-pages/siding/lib/keys.mjs).
 
 Key encodings such as `nsec`, `npub`, or compressed public keys are out of scope and may be used freely by applications.
 
@@ -70,7 +72,7 @@ The tweak `t` MUST be in the range [1, n-1]. Implementations MUST reject states 
 
 - **Pubkey binding**: Same state at different chain positions produces different tweaks
 - **Domain separation**: Tagged hash prevents collision with other protocols
-- **Standards alignment**: Compatible with BIP-341 Taproot
+- **A standard hash, not a standard derivation**: the tweak *hash* is BIP 341's tagged `TapTweak`; the *derivation* is not BIP 341's, because the tweak is added to the point as it is, not to its even-y lift. A trail output is a raw taproot key (`rawtr()` in descriptor terms): spendable by key path by whoever holds the chained secret, and reproducible by anyone from the base point and the states, but not derivable by a BIP 341 tool (a descriptor wallet, a hardware device) from an internal key and a merkle root. When the running point happens to be even-y the two agree; along a chain that is each step's coin flip.
 
 All subsequent uses of `scalar(P, state)` refer to this function.
 
@@ -84,11 +86,10 @@ Boundary encoding for P2TR output:
 
 ```
 p2tr_xonly(P) → bytes32:
-  if y(P) is even: return x(P)
-  else: return x(-P)
+  return x(P)          // x(P) == x(-P): the parity is not part of the output
 ```
 
-The witness program is `p2tr_xonly(P)`. Signing uses the corresponding (possibly negated) private key per BIP-340.
+The witness program is `p2tr_xonly(P)`. Signing uses `d` or `n − d`, whichever gives the even-y point, per BIP-340; that sign is applied inside the signing and is never the key the next tweak is added to.
 
 Spending this output advances the trail to the next committed state.
 
@@ -169,7 +170,7 @@ verify(P_base, genesis_outpoint, states[]) → bool:
   return is_unspent(outpoint)
 ```
 
-Verification chains the tweaks: each state adds to the running public key using pubkey-dependent BIP-341 tweaks. Since `x(P) == x(-P)`, comparison uses x-coordinates only. No parity handling needed.
+Verification chains the tweaks: each state adds to the running public key using pubkey-dependent tweaks. Since `x(P) == x(-P)`, comparison uses x-coordinates only. No parity handling needed. Every link MUST be checked, not the head alone: plain addition commutes, so the head key by itself commits only to the sum of the tweaks, and it is the intermediate outputs on-chain that pin each state in its place.
 
 To locate the spending transaction for a given outpoint, implementations MAY use any standard Bitcoin data source: full node with indexing, Electrum-style servers, or externally published transaction feeds.
 
