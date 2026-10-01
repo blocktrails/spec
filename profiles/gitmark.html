@@ -220,7 +220,7 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
 
     <h2>3. TXO URI Format</h2>
     <p>Git-mark uses TXO URIs to record the on-chain state:</p>
-    <pre><code>txo:&lt;network&gt;:&lt;txid&gt;:&lt;vout&gt;?amount=&lt;sats&gt;&amp;pubkey=&lt;hex&gt;[&amp;commit=&lt;git_hash&gt;]</code></pre>
+    <pre><code>txo:&lt;network&gt;:&lt;txid&gt;:&lt;vout&gt;?amount=&lt;sats&gt;&amp;commit=&lt;git_hash&gt;[&amp;pubkey=&lt;hex&gt;]</code></pre>
 
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
@@ -228,7 +228,7 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
       <tr><td>txid</td><td>hex64</td><td>Transaction ID (64 hex characters)</td></tr>
       <tr><td>vout</td><td>integer</td><td>Output index</td></tr>
       <tr><td>amount</td><td>integer</td><td>Value in satoshis</td></tr>
-      <tr><td>pubkey</td><td>hex64</td><td>X-only pubkey (64 hex characters)</td></tr>
+      <tr><td>pubkey</td><td>hex64</td><td>X-only pubkey (64 hex characters), optional: a verifier recomputes it from the base key and the commits</td></tr>
       <tr><td>commit</td><td>hex40</td><td>Git commit hash: every TXO carries one, the genesis TXO too</td></tr>
     </table>
 
@@ -273,15 +273,29 @@ Commit n:  Pₙ = Pₙ₋₁ + scalar(Pₙ₋₁, commitₙ) × G</div>
     <p>Git-mark state is stored in the repository:</p>
     <pre><code>.well-known/
 └── txo/
-    └── txo.json      # Array of TXO URIs</code></pre>
+    └── txo.json      # Array of TXO URIs
+blocktrails.json      # the trail: the base key, the states, the TXO URIs (what a verifier reads)</code></pre>
 
     <h3>5.1 txo.json Format</h3>
     <p>Simple JSON array of TXO URI strings:</p>
     <pre><code>[
-  "txo:tbtc4:&lt;txid&gt;:0?amount=1000000&amp;pubkey=&lt;genesis_pubkey&gt;",
-  "txo:tbtc4:&lt;txid&gt;:0?amount=999000&amp;pubkey=&lt;pubkey&gt;&amp;commit=&lt;hash&gt;",
-  "txo:tbtc4:&lt;txid&gt;:0?amount=998000&amp;pubkey=&lt;pubkey&gt;&amp;commit=&lt;hash&gt;"
+  "txo:tbtc4:&lt;txid&gt;:0?amount=1000000&amp;commit=&lt;genesis_commit&gt;",
+  "txo:tbtc4:&lt;txid&gt;:0?amount=999000&amp;commit=&lt;hash&gt;",
+  "txo:tbtc4:&lt;txid&gt;:0?amount=998000&amp;commit=&lt;hash&gt;"
 ]</code></pre>
+
+    <h3>5.2 blocktrails.json</h3>
+    <p>The trail as a verifier reads it, served beside the repository (the same shape the live trails use):</p>
+    <pre><code>{
+  "@type": "Blocktrail",
+  "version": "0.0.3",
+  "profile": "gitmark",
+  "pubkeyBase": "02…",          // the base key as a full compressed point (02/03 + x): nothing to guess
+  "chain": "tbtc4",
+  "states": ["&lt;genesis_commit&gt;", "&lt;hash&gt;", "&lt;hash&gt;"],   // one per TXO, in order
+  "txo": ["txo:tbtc4:…", "txo:tbtc4:…", "txo:tbtc4:…"]
+}</code></pre>
+    <p><code>pubkeyBase</code> is where a verifier obtains the base key; <code>txo.json</code> alone does not carry it.</p>
 
     <h2>6. Verification</h2>
 
